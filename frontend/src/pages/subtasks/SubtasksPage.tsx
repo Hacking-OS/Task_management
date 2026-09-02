@@ -23,7 +23,7 @@ import { firstFormError, hasFormErrors, validateSubtaskForm } from "../../utils/
 export function SubtasksPage() {
   const { token } = useAuth();
   const toast = useToast();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
   const [searchParams, setSearchParams] = useSearchParams();
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -45,12 +45,13 @@ export function SubtasksPage() {
   const [submitError, setSubmitError] = useState("");
 
   const load = () => {
-    if (!token) return;
+    if (!token || !activeWorkspace?.id) return;
     setLoading(true);
+    setError("");
     Promise.all([
-      api.getSubtasks(token, {}),
-      api.getTasks(token, activeWorkspace?.id),
-      api.getIssues(token, activeWorkspace?.id),
+      api.getSubtasks(token, { workspace_id: activeWorkspace.id }),
+      api.getTasks(token, activeWorkspace.id),
+      api.getIssues(token, activeWorkspace.id),
     ])
       .then(([s, t, i]) => {
         setSubtasks(s.subtasks);
@@ -147,7 +148,7 @@ export function SubtasksPage() {
     }
   };
 
-  if (loading) return <TablePageSkeleton cols={9} filters={4} />;
+  if (workspaceLoading || (loading && !error)) return <TablePageSkeleton cols={9} filters={4} />;
   if (error) return <ErrorState message={error} />;
 
   return (

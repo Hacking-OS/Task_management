@@ -307,6 +307,46 @@ export function runMigrations(): void {
   `);
 
   migrateDropWorkspaceRootPath();
+  backfillOrphanWorkspaceEntities();
+}
+
+function backfillOrphanWorkspaceEntities(): void {
+  const acme = db.prepare("SELECT id FROM workspaces WHERE name = 'Acme Software' LIMIT 1").get() as { id: string } | undefined;
+  if (!acme) return;
+
+  const wsId = acme.id;
+  for (const table of ["tasks", "issues", "subtasks", "comments", "activity_logs"] as const) {
+    db.prepare(`UPDATE ${table} SET workspace_id = ? WHERE workspace_id IS NULL`).run(wsId);
+  }
+
+  if (columnExists("notifications", "workspace_id")) {
+    db.prepare("UPDATE notifications SET workspace_id = ? WHERE workspace_id IS NULL").run(wsId);
+  }
+
+  if (columnExists("time_entries", "workspace_id")) {
+    db.prepare("UPDATE time_entries SET workspace_id = ? WHERE workspace_id IS NULL").run(wsId);
+
+    const { c } = db.prepare("SELECT count(*) AS c FROM time_entries WHERE workspace_id = ?").get(wsId) as { c: number };
+    if (c > 0) return;
+
+    const demo = db.prepare("SELECT id FROM users WHERE username = 'demo' LIMIT 1").get() as { id: string } | undefined;
+    const task = db.prepare("SELECT id FROM tasks WHERE workspace_id = ? LIMIT 1").get(wsId) as { id: string } | undefined;
+    const issue = db.prepare("SELECT id FROM issues WHERE workspace_id = ? LIMIT 1").get(wsId) as { id: string } | undefined;
+    if (!demo) return;
+
+    if (task) {
+      db.prepare(`
+        INSERT INTO time_entries (id, user_id, workspace_id, entity_type, entity_id, work_date, hours, description)
+        VALUES (?, ?, ?, 'task', ?, date('now'), 2.5, 'RBAC API implementation')
+      `).run(crypto.randomUUID(), demo.id, wsId, task.id);
+    }
+    if (issue) {
+      db.prepare(`
+        INSERT INTO time_entries (id, user_id, workspace_id, entity_type, entity_id, work_date, hours, description)
+        VALUES (?, ?, ?, 'issue', ?, date('now', '-1 day'), 4, 'Investigated login timeout reports')
+      `).run(crypto.randomUUID(), demo.id, wsId, issue.id);
+    }
+  }
 }
 
 function migrateDropWorkspaceRootPath(): void {

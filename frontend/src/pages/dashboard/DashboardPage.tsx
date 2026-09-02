@@ -14,16 +14,17 @@ import { isHighSeverity, SEVERITIES } from "../../utils/severity";
 
 export function DashboardPage() {
   const { token } = useAuth();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
   const { forEntity } = useStatuses();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !activeWorkspace?.id) return;
     setLoading(true);
-    api.getDashboardStats(token, activeWorkspace?.id)
+    setError("");
+    api.getDashboardStats(token, activeWorkspace.id)
       .then(({ stats: s }) => setStats(s))
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
@@ -39,7 +40,7 @@ export function DashboardPage() {
     };
   }, [forEntity]);
 
-  if (loading) return <DashboardSkeleton />;
+  if (workspaceLoading || (loading && !error)) return <DashboardSkeleton />;
   if (error) return <ErrorState message={error} />;
 
   const highSeverityTotal = SEVERITIES.filter(isHighSeverity).reduce((sum, s) => {

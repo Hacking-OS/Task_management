@@ -25,19 +25,20 @@ interface AssignmentRow {
 
 export function AssignmentsPage() {
   const { token } = useAuth();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rows, setRows] = useState<AssignmentRow[]>([]);
   const [typeFilter, setTypeFilter] = useState("all");
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !activeWorkspace?.id) return;
     setLoading(true);
+    setError("");
     Promise.all([
-      api.getTasks(token, activeWorkspace?.id),
-      api.getIssues(token, activeWorkspace?.id),
-      api.getSubtasks(token, {}),
+      api.getTasks(token, activeWorkspace.id),
+      api.getIssues(token, activeWorkspace.id),
+      api.getSubtasks(token, { workspace_id: activeWorkspace.id }),
     ])
       .then(([t, i, s]) => {
         const list: AssignmentRow[] = [];
@@ -88,7 +89,7 @@ export function AssignmentsPage() {
     return rows.filter((r) => r.entityType === typeFilter);
   }, [rows, typeFilter]);
 
-  if (loading) return <TablePageSkeleton cols={6} filters={1} />;
+  if (workspaceLoading || (loading && !error)) return <TablePageSkeleton cols={6} filters={1} />;
   if (error) return <ErrorState message={error} />;
 
   return (

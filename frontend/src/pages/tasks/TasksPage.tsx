@@ -19,7 +19,7 @@ import { useTaskList, type TaskSortKey } from "./taskListUtils";
 
 export function TasksPage() {
   const { token, user } = useAuth();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
   const [searchParams] = useSearchParams();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [subtaskMap, setSubtaskMap] = useState<Record<string, number>>({});
@@ -37,11 +37,12 @@ export function TasksPage() {
   const pageSize = 10;
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !activeWorkspace?.id) return;
     setLoading(true);
+    setError("");
     Promise.all([
-      api.getTasks(token, activeWorkspace?.id),
-      api.getSubtasks(token, { }),
+      api.getTasks(token, activeWorkspace.id),
+      api.getSubtasks(token, { workspace_id: activeWorkspace.id }),
     ])
       .then(([t, s]) => {
         setTasks(t.tasks);
@@ -70,7 +71,7 @@ export function TasksPage() {
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  if (loading) return <TablePageSkeleton cols={9} filters={6} />;
+  if (workspaceLoading || (loading && !error)) return <TablePageSkeleton cols={9} filters={6} />;
   if (error) return <ErrorState message={error} />;
 
   return (

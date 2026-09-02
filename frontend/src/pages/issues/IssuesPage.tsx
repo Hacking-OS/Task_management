@@ -20,7 +20,7 @@ type SortKey = "title" | "status" | "severity" | "updated_at";
 
 export function IssuesPage() {
   const { token, user } = useAuth();
-  const { activeWorkspace } = useWorkspace();
+  const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
   const [searchParams] = useSearchParams();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
@@ -34,11 +34,12 @@ export function IssuesPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !activeWorkspace?.id) return;
     setLoading(true);
+    setError("");
     Promise.all([
-      api.getIssues(token, activeWorkspace?.id),
-      api.getSubtasks(token, {}),
+      api.getIssues(token, activeWorkspace.id),
+      api.getSubtasks(token, { workspace_id: activeWorkspace.id }),
     ])
       .then(([i, s]) => { setIssues(i.issues); setSubtasks(s.subtasks); })
       .catch((e) => setError((e as Error).message))
@@ -73,7 +74,7 @@ export function IssuesPage() {
     else { setSortKey(key); setSortDir("asc"); }
   };
 
-  if (loading) return <TablePageSkeleton cols={6} filters={4} />;
+  if (workspaceLoading || (loading && !error)) return <TablePageSkeleton cols={6} filters={4} />;
   if (error) return <ErrorState message={error} />;
 
   return (
