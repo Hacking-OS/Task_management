@@ -20,6 +20,8 @@ Captured with Playwright using the demo account (`demo` / `demo1234`) against th
 | 14-timesheets.png | Timesheets |
 | 15-settings.png | Settings |
 
+**PDF:** [`Jellyfish-Workspace-Screenshots.pdf`](Jellyfish-Workspace-Screenshots.pdf) — all 15 pages combined.
+
 To recapture (frontend + backend must be running):
 
 ```bash
