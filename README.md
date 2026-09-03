@@ -1,4 +1,4 @@
-# Jellyfish Workspace (PY-BOT)
+# Jellyfish Workspace (TMS)
 
 A full-stack team workspace app for managing **tasks**, **issues**, **subtasks**, **files**, **timesheets**, **notifications**, and **activity** — with role-based access control per workspace.
 
