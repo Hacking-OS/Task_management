@@ -39,6 +39,10 @@ export function requirePermFromQuery(field: string, permission: string) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const value = req.query[field];
     const workspaceId = typeof value === "string" ? value : undefined;
+    if (!workspaceId) {
+      next();
+      return;
+    }
     runPermCheck(req, res, next, workspaceId, permission);
   };
 }
