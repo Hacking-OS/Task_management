@@ -330,15 +330,15 @@ Workspace-scoped operations validate that the authenticated user is a member and
 
 ## Screenshots
 
-UI screenshots (with demo data) live in [`screenshots/`](screenshots/). Recapture after starting both servers:
+25 UI screenshots (demo account `demo` / `demo1234`) live in [`screenshots/`](screenshots/) — including permissions, **approval flows**, task/issue detail, teams/projects, timesheet day panel, billing, and security. Index: [`screenshots/README.md`](screenshots/README.md).
 
 ```powershell
-npm install --no-save playwright
-npx playwright install chromium
-node scripts/capture-screenshots.mjs
+npm run capture:screenshots
+# if Vite is not on 5173:
+# $env:APP_URL="http://localhost:5175"; npm run capture:screenshots
 ```
 
-Set `APP_URL=http://localhost:5174` if Vite uses a non-default port.
+Requires Chromium once: `npx playwright install chromium`.
 
 ---
 

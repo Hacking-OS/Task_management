@@ -19,6 +19,7 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report playwright-report",
+    "capture:screenshots": "node scripts/capture-screenshots.mjs",
     "test:all": "node scripts/run-qa.mjs",
     "qa:api": "node scripts/qa-api.mjs",
     "qa:e2e": "node scripts/qa-e2e.mjs"
