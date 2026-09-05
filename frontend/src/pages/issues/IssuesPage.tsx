@@ -12,8 +12,7 @@ import { SeverityBadge } from "../../shared/SeverityBadge";
 import { SeveritySelect } from "../../shared/SeveritySelect";
 import { StatusBadge } from "../../shared/StatusBadge";
 import { StatusSelect } from "../../shared/StatusSelect";
-import { AssigneeFilterSelect, assigneeIdsFrom } from "../../shared/AssigneePicker";
-import { UserAssignee } from "../../shared/UserAssignee";
+import { AssignUsers, assigneeIdsFrom } from "../../shared/userAssignment";
 import { SEVERITY_RANK, formatDate } from "../../utils/severity";
 
 type SortKey = "title" | "status" | "severity" | "updated_at";
@@ -93,7 +92,7 @@ export function IssuesPage() {
         <input className="input" placeholder="Search issues…" value={search} onChange={(e) => setSearch(e.target.value)} />
         <StatusSelect entityType="issue" value={status} onChange={setStatus} includeAll className="select" />
         <SeveritySelect value={severity as Severity | "all"} onChange={(v) => setSeverity(v)} includeAll />
-        <AssigneeFilterSelect value={assignee} onChange={setAssignee} currentUserId={user?.id} />
+        <AssignUsers variant="filter" value={assignee} onChange={setAssignee} currentUserId={user?.id} />
       </div>
 
       {filtered.length === 0 ? (
@@ -117,7 +116,7 @@ export function IssuesPage() {
                   <td><Link to={`/issues/${i.id}`} className="link-primary">{i.title}</Link></td>
                   <td><StatusBadge entityType="issue" slug={i.status} workspaceId={i.workspace_id ?? undefined} compact /></td>
                   <td><SeverityBadge severity={i.severity} compact /></td>
-                  <td><UserAssignee userIds={assigneeIdsFrom(i)} showName={false} size="sm" /></td>
+                  <td><AssignUsers variant="display" userIds={assigneeIdsFrom(i)} showName={false} size="sm" /></td>
                   <td>{subtaskCount(i.id)}</td>
                   <td>{formatDate(i.updated_at)}</td>
                 </tr>

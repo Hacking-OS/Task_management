@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { runMigrations } from "./migrate.js";
+import { runMigrations, migrateProjectPermissions } from "./migrate.js";
 import { seedPermissions } from "./services/permissions.js";
 import { migrateLegacyWorkspaces } from "./services/authorization.js";
 import { migrateAllWorkspaceStatuses } from "./services/workspaceStatuses.js";
@@ -10,7 +10,7 @@ import { seedDemoData } from "./services/demoSeed.js";
 import { backfillAssignmentsFromLegacy } from "./services/entityAssignments.js";
 
 const DATA_DIR = path.resolve(process.cwd(), "data");
-const DB_PATH = path.join(DATA_DIR, "app.db");
+const DB_PATH = process.env.TEST_DB_PATH ?? path.join(DATA_DIR, "app.db");
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -20,7 +20,7 @@ export const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
-export function initDb(): void {
+export function initDb(options?: { seedDemo?: boolean }): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -73,6 +73,10 @@ export function initDb(): void {
   migrateLegacyWorkspaces();
   migrateAllWorkspaceStatuses();
   migrateMissingSystemRoles();
+  migrateProjectPermissions();
   backfillAssignmentsFromLegacy();
-  seedDemoData();
+  const shouldSeedDemo = options?.seedDemo ?? !process.env.TEST_DB_PATH;
+  if (shouldSeedDemo) {
+    seedDemoData();
+  }
 }

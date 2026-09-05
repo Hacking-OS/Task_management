@@ -4,7 +4,7 @@ import { notify, checkDueTaskNotifications } from "./notifications.js";
 import { recordSeverityChange } from "./severityEvents.js";
 import { parseSeverity, SEVERITY_RANK } from "../validation/severity.js";
 import { validateDescription, validatePriority, validateTitle } from "../validation/common.js";
-import { requirePermission, ForbiddenError, listAccessibleWorkspaceIds } from "./authorization.js";
+import { requirePermission, ForbiddenError, listWorkspaceIdsWithPermission } from "./authorization.js";
 import { validateStatus, getDefaultStatusSlug, getStatus } from "./workspaceStatuses.js";
 import { enrichListWithAssignees, enrichWithAssignees, setAssigneeIds } from "./entityAssignments.js";
 import { notifyEntityWatchers } from "./entityEvents.js";
@@ -18,7 +18,7 @@ export function listTasks(userId: string, workspaceId?: string, severity?: Sever
   checkDueTaskNotifications(userId);
   if (workspaceId) return listTasksInWorkspace(userId, workspaceId, severity);
 
-  const ids = listAccessibleWorkspaceIds(userId);
+  const ids = listWorkspaceIdsWithPermission(userId, "task.view");
   if (ids.length === 0) return [];
 
   const placeholders = ids.map(() => "?").join(",");

@@ -1,13 +1,30 @@
 {
   "name": "jellyfish-workspace",
-  "version": "1.0.0",
+  "version": "2.1.1",
   "private": true,
   "scripts": {
     "dev": "concurrently \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
     "install:all": "npm install --prefix backend && npm install --prefix frontend",
-    "build": "npm run build --prefix backend && npm run build --prefix frontend"
+    "build": "npm run build --prefix backend && npm run build --prefix frontend",
+    "reset-db": "npm run reset-db --prefix backend",
+    "typecheck": "npm run typecheck --prefix backend && npm run typecheck --prefix frontend",
+    "test": "npm run test:jest --prefix backend && npm run test:jest --prefix frontend",
+    "test:jest": "npm run test:jest --prefix backend && npm run test:jest --prefix frontend",
+    "test:unit": "npm run test:unit --prefix backend",
+    "test:api": "npm run test:api --prefix backend",
+    "test:security": "npm run test:security --prefix backend",
+    "test:integration": "npm run test:integration --prefix backend",
+    "test:coverage": "npm run test:coverage --prefix backend",
+    "test:legacy": "npm run test:legacy --prefix backend",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report playwright-report",
+    "test:all": "node scripts/run-qa.mjs",
+    "qa:api": "node scripts/qa-api.mjs",
+    "qa:e2e": "node scripts/qa-e2e.mjs"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "concurrently": "^9.1.2"
   }
 }

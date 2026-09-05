@@ -10,9 +10,7 @@ import { DetailPageSkeleton } from "../../shared/Skeleton";
 import { ErrorState } from "../../shared/StateBox";
 import { SeverityBadge } from "../../shared/SeverityBadge";
 import { StatusBadge } from "../../shared/StatusBadge";
-import { AssigneeField } from "../../shared/AssigneeField";
-import { assigneeIdsFrom } from "../../shared/AssigneePicker";
-import { UserAssignee } from "../../shared/UserAssignee";
+import { AssignUsers, assigneeIdsFrom } from "../../shared/userAssignment";
 import { ActivityTimeline } from "../../shared/ActivityTimeline";
 import { CommentsSection } from "../../shared/CommentsSection";
 import { FileAttachments } from "../../shared/FileAttachments";
@@ -77,10 +75,11 @@ export function IssueDetailPage() {
             <div className="detail-list-row--stack">
               <dt>Assignees</dt>
               <dd>
-                <AssigneeField
-                  userIds={assigneeIdsFrom(issue)}
-                  assignPermission="issue.assign"
-                  onAssign={async (assignee_ids) => {
+                <AssignUsers
+                  variant="inline"
+                  entityType="issue"
+                  value={assigneeIdsFrom(issue)}
+                  onSave={async (assignee_ids) => {
                     if (!token) return;
                     const { issue: updated } = await api.updateIssue(token, issue.id, { assignee_ids });
                     setIssue(updated);
@@ -102,7 +101,7 @@ export function IssueDetailPage() {
             {subtasks.map((s) => (
               <li key={s.id}>
                 <span>{s.title}</span>
-                <UserAssignee userId={s.assignee_id} showName={false} size="xs" />
+                <AssignUsers variant="display" userIds={assigneeIdsFrom(s)} showName={false} size="xs" />
                 <SeverityBadge severity={s.severity} compact />
                 <StatusBadge entityType="subtask" slug={s.status} workspaceId={issue.workspace_id ?? undefined} compact />
               </li>

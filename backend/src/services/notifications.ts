@@ -2,6 +2,22 @@ import { db } from "../db.js";
 import type { Notification, NotifyInput, NotificationType } from "../types.js";
 import { emitNotification, emitNotificationRemoved, emitUnreadSync } from "../socket.js";
 
+function safeEmitUnreadSync(userId: string, count?: number): void {
+  try {
+    emitUnreadSync(userId, count ?? unreadCount(userId));
+  } catch {
+    // Realtime sync must not break REST handlers.
+  }
+}
+
+function safeEmitNotificationRemoved(userId: string, id: string): void {
+  try {
+    emitNotificationRemoved(userId, id, unreadCount(userId));
+  } catch {
+    // Realtime sync must not break REST handlers.
+  }
+}
+
 export function notify(input: NotifyInput): Notification {
   const id = crypto.randomUUID();
   const metadata = input.metadata ? JSON.stringify(input.metadata) : null;
@@ -54,14 +70,14 @@ export function markNotificationRead(userId: string, id: string): boolean {
     .prepare("UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?")
     .run(id, userId);
   if (result.changes > 0) {
-    emitUnreadSync(userId, unreadCount(userId));
+    safeEmitUnreadSync(userId);
   }
   return result.changes > 0;
 }
 
 export function markAllNotificationsRead(userId: string): void {
   db.prepare("UPDATE notifications SET is_read = 1 WHERE user_id = ?").run(userId);
-  emitUnreadSync(userId, 0);
+  safeEmitUnreadSync(userId, 0);
 }
 
 export function deleteNotification(userId: string, id: string): boolean {
@@ -69,7 +85,7 @@ export function deleteNotification(userId: string, id: string): boolean {
     .prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?")
     .run(id, userId);
   if (result.changes > 0) {
-    emitNotificationRemoved(userId, id, unreadCount(userId));
+    safeEmitNotificationRemoved(userId, id);
   }
   return result.changes > 0;
 }

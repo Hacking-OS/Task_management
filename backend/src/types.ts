@@ -16,6 +16,7 @@ export interface Workspace {
   is_active: number;
   created_at: string;
   updated_at: string;
+  approval_flows_enabled?: number;
 }
 
 export type TaskStatus = "todo" | "in_progress" | "done";

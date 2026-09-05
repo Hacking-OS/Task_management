@@ -4,15 +4,13 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { PermissionGate } from "../../shared/PermissionGate";
 import { api } from "../../services/api";
-import type { Issue, Subtask, Task } from "../../models/types";
+import type { Subtask, Task } from "../../models/types";
 import { PageHeader } from "../../shared/PageHeader";
 import { DetailPageSkeleton } from "../../shared/Skeleton";
 import { ErrorState } from "../../shared/StateBox";
 import { SeverityBadge } from "../../shared/SeverityBadge";
 import { StatusBadge } from "../../shared/StatusBadge";
-import { AssigneeField } from "../../shared/AssigneeField";
-import { assigneeIdsFrom } from "../../shared/AssigneePicker";
-import { UserAssignee } from "../../shared/UserAssignee";
+import { AssignUsers, assigneeIdsFrom } from "../../shared/userAssignment";
 import { ActivityTimeline } from "../../shared/ActivityTimeline";
 import { CommentsSection } from "../../shared/CommentsSection";
 import { FileAttachments } from "../../shared/FileAttachments";
@@ -25,7 +23,7 @@ export function TaskDetailPage() {
   const navigate = useNavigate();
   const [task, setTask] = useState<Task | null>(null);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
-  const [issues, setIssues] = useState<Issue[]>([]);
+  const [issueCount, setIssueCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -40,8 +38,10 @@ export function TaskDetailPage() {
         setTask(t.task);
         setSubtasks(s.subtasks);
         if (t.task.workspace_id) {
-          const i = await api.getIssues(token, t.task.workspace_id);
-          setIssues(i.issues);
+          const { stats } = await api.getDashboardStats(token, t.task.workspace_id);
+          setIssueCount(stats.totals.issues);
+        } else {
+          setIssueCount(0);
         }
       })
       .catch((e) => setError((e as Error).message))
@@ -92,10 +92,11 @@ export function TaskDetailPage() {
             <div className="detail-list-row--stack">
               <dt>Assignees</dt>
               <dd>
-                <AssigneeField
-                  userIds={assigneeIdsFrom(task)}
-                  assignPermission="task.assign"
-                  onAssign={async (assignee_ids) => {
+                <AssignUsers
+                  variant="inline"
+                  entityType="task"
+                  value={assigneeIdsFrom(task)}
+                  onSave={async (assignee_ids) => {
                     if (!token) return;
                     const { task: updated } = await api.updateTask(token, task.id, { assignee_ids });
                     setTask(updated);
@@ -118,7 +119,7 @@ export function TaskDetailPage() {
             {subtasks.map((s) => (
               <li key={s.id}>
                 <span>{s.title}</span>
-                <UserAssignee userId={s.assignee_id} showName={false} size="xs" />
+                <AssignUsers variant="display" userIds={assigneeIdsFrom(s)} showName={false} size="xs" />
                 <SeverityBadge severity={s.severity} compact />
                 <StatusBadge entityType="subtask" slug={s.status} workspaceId={task.workspace_id ?? undefined} compact />
               </li>
@@ -129,18 +130,10 @@ export function TaskDetailPage() {
 
         <section className="card">
           <div className="card-header-row">
-            <h3 className="card-title">Workspace issues ({issues.length})</h3>
+            <h3 className="card-title">Workspace issues ({issueCount})</h3>
             <Link to="/issues">View all</Link>
           </div>
-          <ul className="mini-list">
-            {issues.slice(0, 5).map((i) => (
-              <li key={i.id}>
-                <Link to={`/issues/${i.id}`}>{i.title}</Link>
-                <SeverityBadge severity={i.severity} compact />
-              </li>
-            ))}
-            {issues.length === 0 && <li className="muted">No issues in workspace</li>}
-          </ul>
+          <p className="muted">Open the issues list to browse workspace issues linked to this task context.</p>
         </section>
       </div>
 

@@ -39,7 +39,13 @@ export function NotificationItem({
   const typeClass = notificationTypeClass(n.type);
 
   const markReadIfNeeded = async () => {
-    if (!n.is_read && onRead) await onRead(n.id);
+    if (!n.is_read && onRead && n.id?.trim()) {
+      try {
+        await onRead(n.id);
+      } catch {
+        // NotificationContext handles API errors.
+      }
+    }
   };
 
   const openEntity = async () => {
@@ -126,17 +132,17 @@ export function NotificationItem({
           <Link
             to={link}
             className="btn btn-sm btn-secondary notif-action-btn"
-            onClick={() => { markReadIfNeeded(); onClose?.(); }}
+            onClick={() => { void markReadIfNeeded(); onClose?.(); }}
           >
             Open
           </Link>
         )}
 
         {!compact && !n.is_read && onRead && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => onRead(n.id)}>Mark read</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void onRead(n.id)}>Mark read</button>
         )}
         {!compact && onDismiss && (
-          <button type="button" className="btn btn-sm btn-ghost" onClick={() => onDismiss(n.id)}>Dismiss</button>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={() => void onDismiss(n.id)}>Dismiss</button>
         )}
       </div>
     </article>

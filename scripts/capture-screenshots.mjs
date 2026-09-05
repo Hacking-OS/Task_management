@@ -78,10 +78,8 @@ async function waitForPageContent(page, waitType) {
 
 async function resolveTaskDetailPath(page) {
   const taskId = await page.evaluate(async () => {
-    const token = localStorage.getItem("token");
-    if (!token) return null;
     const res = await fetch("/api/tasks?workspace_id=b8492b93-0939-4b38-b4c8-70b636f2990b", {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: "include",
     });
     if (!res.ok) return null;
     const data = await res.json();

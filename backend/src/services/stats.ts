@@ -50,11 +50,26 @@ export interface DashboardStats {
   };
 }
 
-function workspaceFilter(workspaceId: string | undefined, userId: string): { clause: string; params: unknown[] } {
-  if (workspaceId) return { clause: "workspace_id = ?", params: [workspaceId] };
-  const ids = listAccessibleWorkspaceIds(userId);
-  if (ids.length === 0) return { clause: "1=0", params: [] };
-  return { clause: `workspace_id IN (${ids.map(() => "?").join(",")})`, params: [...ids] };
+function workspaceFilter(
+  workspaceId: string | undefined,
+  userId: string,
+  permission: string
+): { clause: string; params: unknown[] } {
+  if (workspaceId) {
+    requirePermission(userId, workspaceId, permission);
+    return { clause: "workspace_id = ?", params: [workspaceId] };
+  }
+  const memberIds = listAccessibleWorkspaceIds(userId);
+  const permitted = memberIds.filter((id) => {
+    try {
+      requirePermission(userId, id, permission);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+  if (permitted.length === 0) return { clause: "1=0", params: [] };
+  return { clause: `workspace_id IN (${permitted.map(() => "?").join(",")})`, params: [...permitted] };
 }
 
 function countBySeverity(
@@ -63,9 +78,7 @@ function countBySeverity(
   workspaceId?: string
 ): SeverityCounts {
   const perm = table === "tasks" ? "task.view" : table === "issues" ? "issue.view" : "subtask.view";
-  if (workspaceId) requirePermission(userId, workspaceId, perm);
-
-  const { clause, params } = workspaceFilter(workspaceId, userId);
+  const { clause, params } = workspaceFilter(workspaceId, userId, perm);
   const rows = db
     .prepare(`SELECT severity, COUNT(*) as count FROM ${table} WHERE ${clause} GROUP BY severity`)
     .all(...params) as { severity: string; count: number }[];
@@ -85,9 +98,7 @@ function countByStatus(
   workspaceId?: string
 ): StatusCount[] {
   const perm = table === "tasks" ? "task.view" : table === "issues" ? "issue.view" : "subtask.view";
-  if (workspaceId) requirePermission(userId, workspaceId, perm);
-
-  const { clause, params } = workspaceFilter(workspaceId, userId);
+  const { clause, params } = workspaceFilter(workspaceId, userId, perm);
   return db
     .prepare(`SELECT status, COUNT(*) as count FROM ${table} WHERE ${clause} GROUP BY status ORDER BY count DESC`)
     .all(...params) as StatusCount[];
@@ -99,9 +110,7 @@ function countTotal(
   workspaceId?: string
 ): number {
   const perm = table === "tasks" ? "task.view" : table === "issues" ? "issue.view" : "subtask.view";
-  if (workspaceId) requirePermission(userId, workspaceId, perm);
-
-  const { clause, params } = workspaceFilter(workspaceId, userId);
+  const { clause, params } = workspaceFilter(workspaceId, userId, perm);
   const row = db.prepare(`SELECT COUNT(*) as count FROM ${table} WHERE ${clause}`).get(...params) as { count: number };
   return row.count;
 }
@@ -113,9 +122,7 @@ function completionForEntity(
   workspaceId?: string
 ): CompletionStats {
   const perm = table === "tasks" ? "task.view" : table === "issues" ? "issue.view" : "subtask.view";
-  if (workspaceId) requirePermission(userId, workspaceId, perm);
-
-  const { clause, params } = workspaceFilter(workspaceId, userId);
+  const { clause, params } = workspaceFilter(workspaceId, userId, perm);
   const alias = table[0];
   const rows = db.prepare(`
     SELECT
@@ -136,9 +143,7 @@ function completionForEntity(
 }
 
 function taskSubtaskProgress(userId: string, workspaceId?: string): TaskSubtaskProgress {
-  if (workspaceId) requirePermission(userId, workspaceId, "task.view");
-
-  const { clause, params } = workspaceFilter(workspaceId, userId);
+  const { clause, params } = workspaceFilter(workspaceId, userId, "task.view");
   const taskClause = clause.replace(/workspace_id/g, "t.workspace_id");
   const rows = db.prepare(`
     SELECT

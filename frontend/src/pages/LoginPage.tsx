@@ -1,6 +1,9 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useToast } from "../context/ToastContext";
+import { resolvePostAuthDestination } from "../utils/authRedirect";
+import { api } from "../services/api";
 import { FormField, inputClass } from "../shared/FormField";
 import {
   validateConfirmPassword,
@@ -12,19 +15,43 @@ import {
   firstFormError,
   hasFormErrors,
 } from "../utils/validation";
+import type { InvitationPreview } from "../models/types";
 
 export function LoginPage() {
   const { login, register } = useAuth();
   const toast = useToast();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+
+  const inviteToken = searchParams.get("invite") ?? "";
+  const emailParam = searchParams.get("email") ?? "";
+  const initialMode = searchParams.get("mode") === "register" ? "register" : "login";
+
+  const [mode, setMode] = useState<"login" | "register">(initialMode);
   const [identifier, setIdentifier] = useState("");
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [fieldErrors, setFieldErrors] = useState<FormErrors<"identifier" | "username" | "email" | "password" | "confirmPassword">>({});
   const [submitError, setSubmitError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [invitePreview, setInvitePreview] = useState<InvitationPreview | null>(null);
+
+  const emailLocked = useMemo(
+    () => Boolean(invitePreview?.valid && invitePreview.email),
+    [invitePreview]
+  );
+
+  useEffect(() => {
+    if (!inviteToken) return;
+    api.previewInvitation(inviteToken)
+      .then(({ preview }) => {
+        setInvitePreview(preview);
+        if (preview.valid) setEmail(preview.email);
+      })
+      .catch(() => setInvitePreview(null));
+  }, [inviteToken]);
 
   const switchMode = (next: "login" | "register") => {
     setMode(next);
@@ -41,6 +68,15 @@ export function LoginPage() {
       delete next[key];
       return next;
     });
+  };
+
+  const afterAuth = async (joinedWorkspaceIds: string[] = []) => {
+    try {
+      const dest = await resolvePostAuthDestination("", joinedWorkspaceIds);
+      navigate(dest, { replace: true });
+    } catch {
+      navigate("/workspaces", { replace: true });
+    }
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -70,14 +106,25 @@ export function LoginPage() {
       return;
     }
 
+    if (invitePreview?.valid && mode === "register" && email.trim().toLowerCase() !== invitePreview.email.toLowerCase()) {
+      setSubmitError(`Use the invited email address: ${invitePreview.email}`);
+      return;
+    }
+
     setLoading(true);
     try {
       if (mode === "login") {
         await login(identifier.trim(), password);
-        toast.success("Signed in", "Welcome back.");
+        if (inviteToken) sessionStorage.setItem("pendingInviteToken", inviteToken);
+        toast.success("Signed in", invitePreview?.valid ? "Accept your invitation on the next screen." : "Welcome back.");
+        await afterAuth();
       } else {
-        await register(username.trim(), email.trim(), password);
-        toast.success("Account created", "You are now signed in.");
+        const joined = await register(username.trim(), email.trim(), password, inviteToken || undefined);
+        toast.success(
+          joined.length > 0 ? "Joined workspace" : "Account created",
+          joined.length > 0 ? "You were added to the workspace." : "Set up or join a workspace next."
+        );
+        await afterAuth(joined);
       }
     } catch (err) {
       toast.fromError(err, mode === "login" ? "Sign in failed" : "Registration failed");
@@ -92,7 +139,27 @@ export function LoginPage() {
       <div className="login-card">
         <p className="eyebrow">Jellyfish Workspace</p>
         <h1>{mode === "login" ? "Welcome back" : "Create account"}</h1>
-        <p className="muted">Tasks, notifications, and workspace management in one place.</p>
+        <p className="muted">
+          {invitePreview?.valid
+            ? `Join ${invitePreview.workspace_name} as ${invitePreview.role_name}.`
+            : "Create a workspace or join one you were invited to."}
+        </p>
+
+        {invitePreview?.valid && invitePreview.invite_code && (
+          <p className="muted login-invite-code">
+            Invite code: <code className="invite-code-display">{invitePreview.invite_code}</code>
+          </p>
+        )}
+        {invitePreview?.valid && (
+          <div className="invite-preview-box login-invite-banner">
+            <strong>{invitePreview.workspace_name}</strong>
+            <span className="muted"> · invited as {invitePreview.role_name}</span>
+            <p className="muted">Use <strong>{invitePreview.email}</strong> for this invitation.</p>
+            {inviteToken && (
+              <Link to={`/invite/${inviteToken}`} className="link-primary">View invitation details</Link>
+            )}
+          </div>
+        )}
 
         <div className="tab-row login-tabs">
           <button type="button" className={`tab-btn${mode === "login" ? " active" : ""}`} onClick={() => switchMode("login")}>
@@ -114,7 +181,7 @@ export function LoginPage() {
                   setIdentifier(e.target.value);
                   clearError("identifier");
                 }}
-                placeholder="yourname or you@company.com"
+                placeholder={emailParam || "yourname or you@company.com"}
               />
             </FormField>
           ) : (
@@ -137,6 +204,7 @@ export function LoginPage() {
                   type="email"
                   autoComplete="email"
                   value={email}
+                  readOnly={emailLocked}
                   onChange={(e) => {
                     setEmail(e.target.value);
                     clearError("email");
@@ -182,7 +250,7 @@ export function LoginPage() {
           </button>
         </form>
 
-        {mode === "login" && <p className="hint muted">Demo account: demo / demo1234</p>}
+        {mode === "login" && !inviteToken && <p className="hint muted">Demo account: demo / demo1234</p>}
       </div>
     </div>
   );

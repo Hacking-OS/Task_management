@@ -58,6 +58,24 @@ export class ActivityLogger {
   }
 
   static forEntity(userId: string, entityType: string, entityId: string): ActivityLog[] {
-    return ActivityLogger.list({ userId, entityType, entityId, limit: 50 });
+    const workspaceId = ActivityLogger.resolveEntityWorkspaceId(entityType, entityId);
+    if (!workspaceId) return [];
+    return ActivityLogger.list({ userId, workspaceId, entityType, entityId, limit: 50 });
+  }
+
+  private static resolveEntityWorkspaceId(entityType: string, entityId: string): string | undefined {
+    if (entityType === "task") {
+      return (db.prepare("SELECT workspace_id FROM tasks WHERE id = ?").get(entityId) as { workspace_id: string } | undefined)?.workspace_id;
+    }
+    if (entityType === "issue") {
+      return (db.prepare("SELECT workspace_id FROM issues WHERE id = ?").get(entityId) as { workspace_id: string } | undefined)?.workspace_id;
+    }
+    if (entityType === "subtask") {
+      return (db.prepare("SELECT workspace_id FROM subtasks WHERE id = ?").get(entityId) as { workspace_id: string } | undefined)?.workspace_id;
+    }
+    if (entityType === "comment") {
+      return (db.prepare("SELECT workspace_id FROM comments WHERE id = ?").get(entityId) as { workspace_id: string } | undefined)?.workspace_id;
+    }
+    return undefined;
   }
 }

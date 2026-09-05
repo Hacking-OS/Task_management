@@ -9,7 +9,7 @@ import { PageHeader } from "../../shared/PageHeader";
 import { FormField, inputClass } from "../../shared/FormField";
 import { SeveritySelect } from "../../shared/SeveritySelect";
 import { StatusSelect } from "../../shared/StatusSelect";
-import { AssigneePicker } from "../../shared/AssigneePicker";
+import { AssignUsersField } from "../../shared/userAssignment";
 import { firstFormError, hasFormErrors, validateIssueForm, type FormErrors } from "../../utils/validation";
 
 export function IssueCreatePage() {
@@ -120,11 +120,7 @@ export function IssueCreatePage() {
           </FormField>
         </div>
 
-        <div className={`form-field-assignees${fieldErrors.workspace ? " has-error" : ""}`}>
-          <span>Assignees</span>
-          <AssigneePicker value={assigneeIds} onChange={setAssigneeIds} />
-          {fieldErrors.workspace ? <span className="field-error" role="alert">{fieldErrors.workspace}</span> : null}
-        </div>
+        <AssignUsersField entityType="issue" value={assigneeIds} onChange={setAssigneeIds} error={fieldErrors.workspace} />
 
         {submitError && <p className="form-error form-summary-error">{submitError}</p>}
 

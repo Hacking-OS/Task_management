@@ -2,9 +2,15 @@ import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.js";
 import { handleServiceError, requirePermFromQuery } from "../middleware/workspaceAuth.js";
 import * as notifService from "../services/notifications.js";
+import { validateEntityId } from "../validation/common.js";
+import { paramString } from "../utils/params.js";
 
 const router = Router();
 router.use(authMiddleware);
+
+function notificationIdParam(req: import("express").Request): string {
+  return validateEntityId(paramString(req.params.id), "Notification");
+}
 
 router.get("/", requirePermFromQuery("workspace_id", "notification.view"), (req, res) => {
   try {
@@ -21,7 +27,7 @@ router.get("/", requirePermFromQuery("workspace_id", "notification.view"), (req,
 
 function markRead(req: import("express").Request, res: import("express").Response): void {
   try {
-    const id = String(req.params.id);
+    const id = notificationIdParam(req);
     const ok = notifService.markNotificationRead(req.userId!, id);
     if (!ok) {
       res.status(404).json({ error: "Notification not found" });
@@ -50,7 +56,7 @@ router.put("/read-all", readAll);
 
 router.delete("/:id", (req, res) => {
   try {
-    const ok = notifService.deleteNotification(req.userId!, String(req.params.id));
+    const ok = notifService.deleteNotification(req.userId!, notificationIdParam(req));
     if (!ok) {
       res.status(404).json({ error: "Notification not found" });
       return;

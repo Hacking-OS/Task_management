@@ -8,6 +8,7 @@ import {
 import { paramString } from "../utils/params.js";
 import * as wsService from "../services/workspaces.js";
 import { ActivityLogger } from "../services/activityLogger.js";
+import { isWorkspaceCreator } from "../services/authorization.js";
 
 const router = Router();
 router.use(authMiddleware);
@@ -15,7 +16,7 @@ router.use(authMiddleware);
 router.get("/", (req, res) => {
   try {
     res.json({
-      workspaces: wsService.listWorkspaces(req.userId!),
+      workspaces: wsService.listWorkspacesWithMembership(req.userId!),
       active: wsService.getActiveWorkspace(req.userId!),
     });
   } catch (error) {
@@ -72,6 +73,26 @@ router.delete("/:id", requirePermFromParam("id", "workspace.delete"), (req, res)
   try {
     wsService.deleteWorkspace(req.userId!, paramString(req.params.id));
     res.status(204).send();
+  } catch (error) {
+    handleServiceError(res, error);
+  }
+});
+
+router.patch("/:id/approval-flows", requireMembershipFromParam("id"), (req, res) => {
+  try {
+    const workspaceId = paramString(req.params.id);
+    if (!isWorkspaceCreator(req.userId!, workspaceId)) {
+      res.status(403).json({ error: "Only the workspace creator can change approval flow settings" });
+      return;
+    }
+    const enabled = req.body.enabled !== false;
+    wsService.setApprovalFlowsEnabled(req.userId!, workspaceId, enabled);
+    const workspace = wsService.getWorkspace(req.userId!, workspaceId);
+    if (!workspace) {
+      res.status(404).json({ error: "Workspace not found" });
+      return;
+    }
+    res.json({ workspace });
   } catch (error) {
     handleServiceError(res, error);
   }

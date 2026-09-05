@@ -3,7 +3,7 @@ import { ActivityLogger } from "./activityLogger.js";
 import { notify } from "./notifications.js";
 import { recordSeverityChange } from "./severityEvents.js";
 import { parseSeverity, SEVERITY_RANK } from "../validation/severity.js";
-import { requirePermission, ForbiddenError, listAccessibleWorkspaceIds } from "./authorization.js";
+import { requirePermission, ForbiddenError, listWorkspaceIdsWithPermission } from "./authorization.js";
 import { validateStatus, getDefaultStatusSlug, getStatus } from "./workspaceStatuses.js";
 import { validateDescription, validateTitle } from "../validation/common.js";
 import { setAssigneeIds } from "./entityAssignments.js";
@@ -21,7 +21,7 @@ export function listSubtasks(
   if (filters?.workspace_id) {
     return listSubtasksInWorkspace(userId, filters.workspace_id, filters);
   }
-  const ids = listAccessibleWorkspaceIds(userId);
+  const ids = listWorkspaceIdsWithPermission(userId, "subtask.view");
   if (ids.length === 0) return [];
   const placeholders = ids.map(() => "?").join(",");
   const params: unknown[] = [...ids];

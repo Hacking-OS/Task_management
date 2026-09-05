@@ -13,9 +13,8 @@ import { SeverityBadge } from "../../shared/SeverityBadge";
 import { SeveritySelect } from "../../shared/SeveritySelect";
 import { StatusBadge } from "../../shared/StatusBadge";
 import { StatusSelect } from "../../shared/StatusSelect";
-import { AssigneePicker, assigneeIdsFrom } from "../../shared/AssigneePicker";
+import { AssignUsersField, AssignUsers, assigneeIdsFrom } from "../../shared/userAssignment";
 import { FormField, inputClass } from "../../shared/FormField";
-import { UserAssignee } from "../../shared/UserAssignee";
 import { FileAttachments } from "../../shared/FileAttachments";
 import { formatDate } from "../../utils/severity";
 import { firstFormError, hasFormErrors, validateSubtaskForm } from "../../utils/validation";
@@ -43,6 +42,7 @@ export function SubtasksPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [fieldErrors, setFieldErrors] = useState<{ title?: string; parent?: string }>({});
   const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const load = () => {
     if (!token || !activeWorkspace?.id) return;
@@ -104,7 +104,7 @@ export function SubtasksPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token) return;
+    if (!token || submitting) return;
 
     const errors = validateSubtaskForm({ title, taskId, issueId });
     setFieldErrors(errors);
@@ -114,6 +114,7 @@ export function SubtasksPage() {
     }
 
     setSubmitError("");
+    setSubmitting(true);
     try {
       if (editId) {
         await api.updateSubtask(token, editId, { title: title.trim(), severity, status, assignee_ids: assigneeIds, task_id: taskId || null, issue_id: issueId || null });
@@ -134,6 +135,8 @@ export function SubtasksPage() {
     } catch (err) {
       toast.fromError(err, editId ? "Could not update subtask" : "Could not create subtask");
       setSubmitError((err as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -229,14 +232,11 @@ export function SubtasksPage() {
                 </FormField>
               )}
             </div>
-            <div className="form-field-assignees">
-              <span>Assignees</span>
-              <AssigneePicker value={assigneeIds} onChange={setAssigneeIds} />
-            </div>
+            <AssignUsersField entityType="subtask" value={assigneeIds} onChange={setAssigneeIds} />
             {submitError && <p className="form-error form-summary-error">{submitError}</p>}
             <div className="form-actions">
               <button type="button" className="btn btn-ghost" onClick={resetForm}>Cancel</button>
-              <button type="submit" className="btn btn-primary">{editId ? "Save" : "Create"}</button>
+              <button type="submit" className="btn btn-primary" disabled={submitting}>{editId ? "Save" : "Create"}</button>
             </div>
           </form>
           {editId && editWorkspaceId && (
@@ -276,7 +276,7 @@ export function SubtasksPage() {
                   <td>{s.issue_id ? <Link to={`/issues/${s.issue_id}`}>{issueMap[s.issue_id]?.title ?? s.issue_id.slice(0, 8)}</Link> : "—"}</td>
                   <td><StatusBadge entityType="subtask" slug={s.status} workspaceId={s.workspace_id ?? undefined} compact /></td>
                   <td><SeverityBadge severity={s.severity} compact /></td>
-                  <td><UserAssignee userIds={assigneeIdsFrom(s)} showName={false} size="sm" /></td>
+                  <td><AssignUsers variant="display" userIds={assigneeIdsFrom(s)} showName={false} size="sm" /></td>
                   <td>{s.status === "done" ? "100%" : "0%"}</td>
                   <td>{formatDate(s.updated_at)}</td>
                   <td className="actions-cell">

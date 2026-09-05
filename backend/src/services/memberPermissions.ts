@@ -1,6 +1,6 @@
 import { db } from "../db.js";
 import { ALL_PERMISSION_CODES } from "../permissions/catalog.js";
-import { getPermissionsByRole } from "./permissions.js";
+import { getRolePermissionEffects, isApprovalDecideCode } from "./permissionResolver.js";
 import { ForbiddenError } from "./authorization.js";
 
 export type PermissionEffect = "grant" | "deny";
@@ -28,9 +28,16 @@ export function getMemberOverrideSets(memberId: string): { grants: string[]; den
 export function computeEffectivePermissions(roleId: string, memberId: string, roleSlug?: string): string[] {
   if (roleSlug === "owner") return [...ALL_PERMISSION_CODES];
 
-  const effective = new Set(getPermissionsByRole(roleId));
+  const effective = new Set<string>();
+  const roleEffects = getRolePermissionEffects(roleId);
+  for (const [code, effect] of roleEffects) {
+    if (effect === "allow" && ALL_PERMISSION_CODES.includes(code)) effective.add(code);
+  }
+
   const { grants, denies } = getMemberOverrideSets(memberId);
-  for (const code of grants) effective.add(code);
+  for (const code of grants) {
+    if (ALL_PERMISSION_CODES.includes(code)) effective.add(code);
+  }
   for (const code of denies) effective.delete(code);
   return Array.from(effective).sort();
 }
@@ -52,7 +59,10 @@ export function setMemberPermissionOverrides(
   }
 
   const valid = new Set(ALL_PERMISSION_CODES);
-  const normalized = overrides.filter((o) => valid.has(o.permission_code) && (o.effect === "grant" || o.effect === "deny"));
+  const normalized = overrides.filter(
+    (o) => (valid.has(o.permission_code) || isApprovalDecideCode(o.permission_code)) &&
+      (o.effect === "grant" || o.effect === "deny")
+  );
 
   const tx = db.transaction(() => {
     db.prepare("DELETE FROM workspace_member_permissions WHERE member_id = ?").run(memberId);

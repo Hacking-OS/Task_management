@@ -4,3 +4,8 @@ data/
 *.db
 .env
 .DS_Store
+coverage/
+playwright-report/
+e2e/.auth/
+backend/coverage/
+backend/data/test/

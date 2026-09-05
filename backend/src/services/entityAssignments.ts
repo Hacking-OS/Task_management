@@ -46,6 +46,15 @@ export function resolveAssigneeIds(
   return legacyAssigneeId ? [legacyAssigneeId] : [];
 }
 
+function assertAssigneesInWorkspace(workspaceId: string, assigneeIds: string[]): void {
+  for (const assigneeId of assigneeIds) {
+    const member = db.prepare(`
+      SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ?
+    `).get(workspaceId, assigneeId);
+    if (!member) throw new Error("Assignee must be a workspace member");
+  }
+}
+
 export function setAssigneeIds(
   actorUserId: string,
   workspaceId: string,
@@ -56,7 +65,10 @@ export function setAssigneeIds(
   assignPermission: string
 ): string[] {
   const unique = [...new Set(assigneeIds.filter(Boolean))];
-  if (unique.length > 0) requirePermission(actorUserId, workspaceId, assignPermission);
+  if (unique.length > 0) {
+    requirePermission(actorUserId, workspaceId, assignPermission);
+    assertAssigneesInWorkspace(workspaceId, unique);
+  }
 
   const existing = listAssigneeIds(entityType, entityId);
   const added = unique.filter((id) => !existing.includes(id));

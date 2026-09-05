@@ -12,8 +12,7 @@ import { SeverityBadge } from "../../shared/SeverityBadge";
 import { SeveritySelect } from "../../shared/SeveritySelect";
 import { StatusBadge } from "../../shared/StatusBadge";
 import { StatusSelect } from "../../shared/StatusSelect";
-import { AssigneeFilterSelect, assigneeIdsFrom } from "../../shared/AssigneePicker";
-import { UserAssignee } from "../../shared/UserAssignee";
+import { AssignUsers, assigneeIdsFrom } from "../../shared/userAssignment";
 import { formatDate } from "../../utils/severity";
 import { useTaskList, type TaskSortKey } from "./taskListUtils";
 
@@ -96,7 +95,7 @@ export function TasksPage() {
           <option value="medium">Medium</option>
           <option value="low">Low</option>
         </select>
-        <AssigneeFilterSelect value={assignee} onChange={(v) => { setAssignee(v); setPage(1); }} currentUserId={user?.id} />
+        <AssignUsers variant="filter" value={assignee} onChange={(v) => { setAssignee(v); setPage(1); }} currentUserId={user?.id} />
         <input type="date" className="input" value={dueBefore} onChange={(e) => { setDueBefore(e.target.value); setPage(1); }} title="Due before" />
       </div>
 
@@ -126,7 +125,7 @@ export function TasksPage() {
                   <td><StatusBadge entityType="task" slug={t.status} workspaceId={t.workspace_id ?? undefined} compact /></td>
                   <td><SeverityBadge severity={t.severity} compact /></td>
                   <td><span className="badge">{t.priority}</span></td>
-                  <td><UserAssignee userIds={assigneeIdsFrom(t)} showName={false} size="sm" /></td>
+                  <td><AssignUsers variant="display" userIds={assigneeIdsFrom(t)} showName={false} size="sm" /></td>
                   <td>{t.due_date ? formatDate(t.due_date) : "—"}</td>
                   <td>{subtaskMap[t.id] ?? 0}</td>
                   <td>{formatDate(t.updated_at)}</td>

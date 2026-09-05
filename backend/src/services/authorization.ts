@@ -3,13 +3,30 @@ import type { User } from "../types.js";
 import { avatarUrlForUser } from "./files.js";
 import { getPermissionsByRole } from "./permissions.js";
 import { getRole, getRoleBySlug, seedDefaultRoles } from "./workspaceRoles.js";
-import { computeEffectivePermissions } from "./memberPermissions.js";
+import { computeEffectivePermissions, getMemberOverrideSets } from "./memberPermissions.js";
+import { sanitizeMemberForViewer } from "./permissionVisibility.js";
+import { resolvePermission, approvalDecideCode, getRolePermissionEffects } from "./permissionResolver.js";
+import { getMemberSecurityVersion, bumpSecurityVersionForUserInWorkspace } from "./securityVersion.js";
 
 export class ForbiddenError extends Error {
   status = 403;
   constructor(message = "Forbidden") {
     super(message);
     this.name = "ForbiddenError";
+  }
+}
+
+export class PermissionDeniedError extends ForbiddenError {
+  permission: string;
+  workspaceId: string | null;
+  requiresApproval: boolean;
+
+  constructor(permission: string, workspaceId: string | null, requiresApproval = false) {
+    super(requiresApproval ? `Approval required: ${permission}` : `Missing permission: ${permission}`);
+    this.name = "PermissionDeniedError";
+    this.permission = permission;
+    this.workspaceId = workspaceId;
+    this.requiresApproval = requiresApproval;
   }
 }
 
@@ -27,6 +44,10 @@ export interface MemberWithDetails extends WorkspaceMember {
   role_name: string;
   role_slug: string;
   avatar_url: string | null;
+  role_permissions?: string[];
+  permission_overrides?: { grants: string[]; denies: string[] };
+  effective_permissions?: string[];
+  permissions_hidden?: boolean;
 }
 
 export function getMembership(userId: string, workspaceId: string): WorkspaceMember | undefined {
@@ -50,14 +71,23 @@ export function getEffectivePermissions(userId: string, workspaceId: string): st
 }
 
 export function hasPermission(userId: string, workspaceId: string, permission: string): boolean {
-  return getEffectivePermissions(userId, workspaceId).includes(permission);
+  return resolvePermission(userId, workspaceId, permission).allowed;
 }
+
+export function getPermissionResolution(userId: string, workspaceId: string, permission: string) {
+  return resolvePermission(userId, workspaceId, permission);
+}
+
+export { resolvePermission, approvalDecideCode, getRolePermissionEffects };
 
 export function requirePermission(userId: string, workspaceId: string | null | undefined, permission: string): void {
   if (!workspaceId) throw new ForbiddenError("Workspace context required");
-  if (!hasPermission(userId, workspaceId, permission)) {
-    throw new ForbiddenError(`Missing permission: ${permission}`);
+  const resolution = resolvePermission(userId, workspaceId, permission);
+  if (resolution.allowed) return;
+  if (resolution.requiresApproval) {
+    throw new PermissionDeniedError(permission, workspaceId, true);
   }
+  throw new PermissionDeniedError(permission, workspaceId, false);
 }
 
 export function requireMembership(userId: string, workspaceId: string): WorkspaceMember {
@@ -67,6 +97,9 @@ export function requireMembership(userId: string, workspaceId: string): Workspac
 }
 
 export function addMember(workspaceId: string, userId: string, roleId: string): WorkspaceMember {
+  const existing = getMembership(userId, workspaceId);
+  if (existing) throw new Error("User is already a workspace member");
+
   const id = crypto.randomUUID();
   db.prepare(`
     INSERT INTO workspace_members (id, workspace_id, user_id, role_id)
@@ -75,7 +108,7 @@ export function addMember(workspaceId: string, userId: string, roleId: string): 
   return db.prepare("SELECT * FROM workspace_members WHERE id = ?").get(id) as WorkspaceMember;
 }
 
-export function listMembers(workspaceId: string): MemberWithDetails[] {
+export function listMembers(workspaceId: string, viewerUserId?: string): MemberWithDetails[] {
   const rows = db.prepare(`
     SELECT m.*, u.username, u.email, r.name AS role_name, r.slug AS role_slug
     FROM workspace_members m
@@ -84,7 +117,20 @@ export function listMembers(workspaceId: string): MemberWithDetails[] {
     WHERE m.workspace_id = ?
     ORDER BY r.is_system DESC, u.username ASC
   `).all(workspaceId) as Omit<MemberWithDetails, "avatar_url">[];
-  return rows.map((m) => ({ ...m, avatar_url: avatarUrlForUser(m.user_id) }));
+
+  return rows.map((m) => {
+    const role_permissions = getPermissionsByRole(m.role_id);
+    const permission_overrides = getMemberOverrideSets(m.id);
+    const effective_permissions = computeEffectivePermissions(m.role_id, m.id, m.role_slug);
+    const member: MemberWithDetails = {
+      ...m,
+      avatar_url: avatarUrlForUser(m.user_id),
+      role_permissions,
+      permission_overrides,
+      effective_permissions,
+    };
+    return viewerUserId ? sanitizeMemberForViewer(member, viewerUserId, workspaceId) : member;
+  });
 }
 
 export function changeMemberRole(
@@ -127,6 +173,7 @@ export function removeMember(workspaceId: string, memberId: string, actorUserId:
   if (member.user_id === actorUserId) throw new ForbiddenError("Cannot remove yourself");
 
   db.prepare("DELETE FROM workspace_members WHERE id = ?").run(memberId);
+  bumpSecurityVersionForUserInWorkspace(workspaceId, member.user_id, "workspace.access.revoked");
 }
 
 export function getMemberEffectivePermissions(workspaceId: string, memberId: string): string[] {
@@ -159,6 +206,32 @@ export function listAccessibleWorkspaceIds(userId: string): string[] {
     SELECT workspace_id FROM workspace_members WHERE user_id = ?
   `).all(userId) as { workspace_id: string }[];
   return rows.map((r) => r.workspace_id);
+}
+
+export function listWorkspaceIdsWithPermission(userId: string, permissionCode: string): string[] {
+  return listAccessibleWorkspaceIds(userId).filter((workspaceId) =>
+    hasPermission(userId, workspaceId, permissionCode)
+  );
+}
+
+export function setUserActiveWorkspace(userId: string, workspaceId: string): void {
+  db.prepare(`
+    INSERT INTO user_workspace_preferences (user_id, active_workspace_id, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      active_workspace_id = excluded.active_workspace_id,
+      updated_at = datetime('now')
+  `).run(userId, workspaceId);
+}
+
+export function getUserActiveWorkspaceId(userId: string): string | undefined {
+  const row = db.prepare(`
+    SELECT p.active_workspace_id AS workspace_id
+    FROM user_workspace_preferences p
+    JOIN workspace_members m ON m.workspace_id = p.active_workspace_id AND m.user_id = p.user_id
+    WHERE p.user_id = ?
+  `).get(userId) as { workspace_id: string } | undefined;
+  return row?.workspace_id;
 }
 
 export function migrateLegacyWorkspaces(): void {
@@ -204,14 +277,26 @@ export function getMemberContext(userId: string, workspaceId: string) {
     WHERE m.workspace_id = ? AND m.user_id = ?
   `).get(workspaceId, userId) as (WorkspaceMember & { role_name: string; role_slug: string }) | undefined;
 
+  const permissions = membership
+    ? computeEffectivePermissions(membership.role_id, membership.id, membership.role_slug)
+    : [];
+
+  const security_version = membership
+    ? getMemberSecurityVersion(workspaceId, userId)
+    : 0;
+
+  const approval_decide_permissions = membership
+    ? permissions.filter((p) => p.startsWith("approval.decide"))
+    : [];
+
   return {
     is_member: !!membership,
     is_creator: !!ws && ws.user_id === userId,
     is_owner: membership?.role_slug === "owner",
     role_slug: membership?.role_slug ?? null,
     role_name: membership?.role_name ?? null,
-    permissions: membership
-      ? computeEffectivePermissions(membership.role_id, membership.id, membership.role_slug)
-      : [],
+    permissions,
+    security_version,
+    approval_decide_permissions,
   };
 }

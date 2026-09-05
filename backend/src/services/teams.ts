@@ -38,7 +38,7 @@ export function isTeamLead(userId: string, teamId: string): boolean {
     SELECT 1 FROM workspace_teams t
     JOIN workspace_members m ON m.id = t.lead_member_id
     WHERE t.id = ? AND m.user_id = ?
-  `).get(teamId);
+  `).get(teamId, userId);
   return !!row;
 }
 

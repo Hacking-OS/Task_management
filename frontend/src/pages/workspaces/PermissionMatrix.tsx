@@ -24,7 +24,11 @@ export function PermissionMatrixTable({ permissions, roles, editable, onToggle, 
             {roles.map((role) => (
               <th key={role.id} className="perm-col-role">
                 <span className="perm-role-name">{role.name}</span>
-                {role.is_system ? <span className="perm-role-tag">System</span> : null}
+                {role.permissions_hidden ? (
+                  <span className="perm-role-tag perm-role-hidden">Hidden</span>
+                ) : role.is_system ? (
+                  <span className="perm-role-tag">System</span>
+                ) : null}
                 {savingRoleId === role.id ? <span className="perm-saving">Saving…</span> : null}
               </th>
             ))}
@@ -43,17 +47,22 @@ export function PermissionMatrixTable({ permissions, roles, editable, onToggle, 
                     <span className="perm-desc">{perm.description}</span>
                   </td>
                   {roles.map((role) => {
-                    const enabled = (role.permissions ?? []).includes(perm.code);
-                    const locked = !editable || role.slug === "owner";
+                    const ownerHidden = role.permissions_hidden === true;
+                    const enabled = !ownerHidden && (role.permissions ?? []).includes(perm.code);
+                    const locked = !editable || role.slug === "owner" || ownerHidden;
                     return (
                       <td key={`${role.id}-${perm.code}`} className="perm-check-cell">
-                        <input
-                          type="checkbox"
-                          checked={enabled}
-                          disabled={locked}
-                          aria-label={`${perm.name} for ${role.name}`}
-                          onChange={(e) => onToggle(role.id, perm.code, e.target.checked)}
-                        />
+                        {ownerHidden ? (
+                          <span className="perm-hidden-mark" title="Owner permissions are private">—</span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={enabled}
+                            disabled={locked}
+                            aria-label={`${perm.name} for ${role.name}`}
+                            onChange={(e) => onToggle(role.id, perm.code, e.target.checked)}
+                          />
+                        )}
                       </td>
                     );
                   })}
@@ -64,6 +73,33 @@ export function PermissionMatrixTable({ permissions, roles, editable, onToggle, 
         </tbody>
       </table>
     </div>
+  );
+}
+
+interface SingleRolePermissionEditorProps {
+  permissions: Permission[];
+  role: WorkspaceRole;
+  editable: boolean;
+  onToggle: (roleId: string, permissionCode: string, enabled: boolean) => void;
+  savingRoleId?: string | null;
+}
+
+/** Edit permissions for one role (e.g. from a selected user's role). */
+export function SingleRolePermissionEditor({
+  permissions,
+  role,
+  editable,
+  onToggle,
+  savingRoleId,
+}: SingleRolePermissionEditorProps) {
+  return (
+    <PermissionMatrixTable
+      permissions={permissions}
+      roles={[role]}
+      editable={editable}
+      savingRoleId={savingRoleId}
+      onToggle={onToggle}
+    />
   );
 }
 

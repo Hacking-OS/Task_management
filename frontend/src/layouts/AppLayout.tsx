@@ -4,8 +4,10 @@ import { usePermissions } from "../context/PermissionsContext";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { NotificationBell } from "../shared/NotificationBell";
 import { PermissionGate } from "../shared/PermissionGate";
+import { WorkspaceSwitcher } from "../shared/WorkspaceSwitcher";
 import { UserAvatar } from "../shared/UserAvatar";
 import { Icon, type IconName } from "../shared/icons/Icon";
+import { TablePageSkeleton } from "../shared/Skeleton";
 
 type NavItem = { to: string; label: string; icon: IconName; permission?: string; anyOf?: string[] };
 
@@ -19,10 +21,21 @@ function filterNavItems(items: NavItem[], hasPermission: (c: string) => boolean,
 
 export function AppLayout() {
   const { user, logout } = useAuth();
-  const { activeWorkspace } = useWorkspace();
-  const { hasPermission, hasAnyPermission } = usePermissions();
+  const { activeWorkspace, workspaces, loading: wsLoading, switching } = useWorkspace();
+  const { hasPermission, hasAnyPermission, roleName, workspaceName, isOwner, roleSlug } = usePermissions();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const isWorkspacePicker = location.pathname === "/workspaces" || location.pathname === "/onboarding";
+
+  if (wsLoading || switching) {
+    return <TablePageSkeleton cols={4} filters={0} />;
+  }
+
+  if (!isWorkspacePicker && workspaces.length === 0) {
+    navigate("/onboarding", { replace: true });
+    return <TablePageSkeleton cols={4} filters={0} />;
+  }
 
   const railNav = filterNavItems(
     [
@@ -46,9 +59,15 @@ export function AppLayout() {
         [
           { to: "/files", label: "Files", icon: "files", permission: "file.view" },
           { to: "/timesheets", label: "Timesheets", icon: "tasks", permission: "timesheet.view" },
+          ...(isOwner || roleSlug === "admin"
+            ? [{ to: "/billing", label: "Billing", icon: "files" as IconName }]
+            : []),
           { to: "/workspaces", label: "Overview", icon: "workspaces" },
           ...(activeWorkspace
-            ? [{ to: `/workspaces/${activeWorkspace.id}/permissions`, label: "Permissions", icon: "settings" as IconName, permission: "member.view" }]
+            ? [
+                { to: `/workspaces/${activeWorkspace.id}/permissions`, label: "Permissions", icon: "settings" as IconName, permission: "member.view" },
+                ...(isOwner ? [{ to: "/security", label: "Security", icon: "settings" as IconName }] : []),
+              ]
             : []),
         ],
         hasPermission,
@@ -62,6 +81,8 @@ export function AppLayout() {
           { to: "/tasks", label: "Tasks", icon: "tasks", permission: "task.view" },
           { to: "/issues", label: "Issues", icon: "issues", permission: "issue.view" },
           { to: "/subtasks", label: "Subtasks", icon: "subtasks", permission: "subtask.view" },
+          { to: "/teams", label: "Teams", icon: "workspaces", permission: "team.view" },
+          { to: "/projects", label: "Projects", icon: "workspaces", permission: "project.view" },
           { to: "/assignments", label: "Assignments", icon: "assignments", anyOf: ["task.view", "issue.view", "subtask.view"] },
         ],
         hasPermission,
@@ -87,11 +108,13 @@ export function AppLayout() {
     if (p.includes("/permissions")) return "Permissions";
     if (p.startsWith("/tasks")) return "Tasks";
     if (p.startsWith("/issues")) return "Issues";
-    if (p.startsWith("/subtasks")) return "Subtasks";
+    if (p.startsWith("/teams")) return "Teams";
+    if (p.startsWith("/projects")) return "Projects";
     if (p.startsWith("/notifications")) return "Notifications";
     if (p.startsWith("/activity")) return "Activity";
     if (p.startsWith("/files")) return "Files";
     if (p.startsWith("/timesheets")) return "Timesheets";
+    if (p.startsWith("/billing")) return "Billing";
     if (p.startsWith("/workspaces")) return "Workspaces";
     if (p.startsWith("/settings")) return "Settings";
     return "Dashboard";
@@ -148,10 +171,12 @@ export function AppLayout() {
         <header className="top-header">
           <div className="header-left">
             <h2 className="page-title-sm">{pageTitle}</h2>
-            <button type="button" className="workspace-chip" onClick={() => navigate("/workspaces")}>
-              <Icon name="workspaces" size={14} />
-              {activeWorkspace?.name ?? "Select workspace"}
-            </button>
+            <WorkspaceSwitcher />
+            {activeWorkspace && roleName && (
+              <span className="role-chip" title={`Your role in ${workspaceName ?? activeWorkspace.name}`}>
+                {roleName} · {workspaceName ?? activeWorkspace.name}
+              </span>
+            )}
           </div>
           <div className="header-right">
             <div className="search-wrap">

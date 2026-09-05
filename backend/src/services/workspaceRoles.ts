@@ -5,7 +5,7 @@ import {
   SYSTEM_ROLE_NAMES,
   SYSTEM_ROLE_SLUGS,
 } from "../permissions/catalog.js";
-import { getPermissionsByRole, setRolePermissions } from "./permissions.js";
+import { getPermissionsByRole, setRolePermissions, setRolePermissionEffects, getRolePermissionEntries, type RolePermissionEntry } from "./permissions.js";
 
 export interface WorkspaceRole {
   id: string;
@@ -139,15 +139,34 @@ export function cloneRole(workspaceId: string, roleId: string, newName: string):
   return createRole(workspaceId, newName, perms);
 }
 
+export function updateRolePermissionEffects(
+  workspaceId: string,
+  roleId: string,
+  entries: RolePermissionEntry[]
+): WorkspaceRole {
+  const role = getRole(workspaceId, roleId);
+  if (!role) throw new Error("Role not found");
+  if (role.slug === "owner") throw new Error("Owner role permissions cannot be modified");
+
+  setRolePermissionEffects(roleId, entries);
+  db.prepare("UPDATE workspace_roles SET updated_at = datetime('now') WHERE id = ?").run(roleId);
+  return db.prepare("SELECT * FROM workspace_roles WHERE id = ?").get(roleId) as WorkspaceRole;
+}
+
 export function getRoleWithPermissions(workspaceId: string, roleId: string) {
   const role = getRole(workspaceId, roleId);
   if (!role) return undefined;
-  return { ...role, permissions: getPermissionsByRole(roleId) };
+  return {
+    ...role,
+    permissions: getPermissionsByRole(roleId),
+    permission_effects: getRolePermissionEntries(roleId),
+  };
 }
 
 export function listRolesWithPermissions(workspaceId: string) {
   return listRoles(workspaceId).map((role) => ({
     ...role,
     permissions: getPermissionsByRole(role.id),
+    permission_effects: getRolePermissionEntries(role.id),
   }));
 }

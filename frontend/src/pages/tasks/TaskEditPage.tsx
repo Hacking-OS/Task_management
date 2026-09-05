@@ -10,7 +10,7 @@ import { ErrorState } from "../../shared/StateBox";
 import { FormField, inputClass } from "../../shared/FormField";
 import { SeveritySelect } from "../../shared/SeveritySelect";
 import { StatusSelect } from "../../shared/StatusSelect";
-import { AssigneePicker, assigneeIdsFrom } from "../../shared/AssigneePicker";
+import { AssignUsersField, assigneeIdsFrom } from "../../shared/userAssignment";
 import { firstFormError, hasFormErrors, validateTaskForm, type FormErrors } from "../../utils/validation";
 
 export function TaskEditPage() {
@@ -151,10 +151,7 @@ export function TaskEditPage() {
           </FormField>
         </div>
 
-        <div className="form-field-assignees">
-          <span>Assignees</span>
-          <AssigneePicker value={assigneeIds} onChange={setAssigneeIds} />
-        </div>
+        <AssignUsersField entityType="task" value={assigneeIds} onChange={setAssigneeIds} />
 
         {submitError && <p className="form-error form-summary-error">{submitError}</p>}
 

@@ -1,7 +1,11 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { usePermissions } from "../context/PermissionsContext";
+import { useApprovals } from "../context/ApprovalsContext";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useToast } from "../context/ToastContext";
+import { api } from "../services/api";
 import { TablePageSkeleton } from "./Skeleton";
 
 interface PermissionGateProps {
@@ -60,7 +64,7 @@ export function RequirePermission({
   children,
 }: RequirePermissionProps) {
   const { activeWorkspace } = useWorkspace();
-  const { hasAnyPermission, hasAllPermissions, isOwner, loading } = usePermissions();
+  const { hasAnyPermission, hasAllPermissions, isOwner, loading, workspaceName } = usePermissions();
 
   if (loading) return <TablePageSkeleton cols={4} filters={0} />;
 
@@ -86,7 +90,8 @@ export function RequirePermission({
     if (!allowed) {
       return (
         <ForbiddenPage
-          message={`You need ${allOf ? "all of" : "one of"} these permissions: ${codes.join(", ")}`}
+          message={`You need ${allOf ? "all of" : "one of"} these permissions in ${workspaceName ?? activeWorkspace.name}: ${codes.join(", ")}`}
+          requiredPermissions={codes}
         />
       );
     }
@@ -95,11 +100,65 @@ export function RequirePermission({
   return <>{children}</>;
 }
 
-export function ForbiddenPage({ message }: { message: string }) {
+export function ForbiddenPage({
+  message,
+  requiredPermissions = [],
+}: {
+  message: string;
+  requiredPermissions?: string[];
+}) {
+  const { token } = useAuth();
+  const { activeWorkspace } = useWorkspace();
+  const { approvalFlowsEnabled, workspaceName } = usePermissions();
+  const { refresh: refreshApprovals } = useApprovals();
+  const toast = useToast();
+  const [requesting, setRequesting] = useState<string | null>(null);
+
+  const handleRequestApproval = async (permissionCode: string) => {
+    if (!token || !activeWorkspace?.id) return;
+    setRequesting(permissionCode);
+    try {
+      await api.createApprovalRequest(token, activeWorkspace.id, {
+        permission_code: permissionCode,
+        title: `Access request: ${permissionCode}`,
+        description: message,
+      });
+      toast.success("Request sent", "Authorized reviewers will be notified.");
+      await refreshApprovals();
+    } catch (e) {
+      toast.fromError(e, "Could not submit approval request");
+    } finally {
+      setRequesting(null);
+    }
+  };
+
   return (
     <div className="forbidden-page card">
       <h2>Access denied</h2>
       <p className="muted">{message}</p>
+
+      {approvalFlowsEnabled && requiredPermissions.length > 0 && activeWorkspace && (
+        <div className="approval-request-panel" style={{ marginTop: 16 }}>
+          <p className="muted">
+            You can request approval from the workspace creator for permissions you need in <strong>{workspaceName ?? activeWorkspace.name}</strong>.
+          </p>
+          <ul className="approval-perm-list">
+            {requiredPermissions.map((code) => (
+              <li key={code}>
+                <code>{code}</code>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  disabled={requesting === code}
+                  onClick={() => handleRequestApproval(code)}
+                >
+                  {requesting === code ? "Sending…" : "Request approval"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

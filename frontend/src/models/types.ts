@@ -115,7 +115,24 @@ export interface WorkspaceInvitation {
   role_name?: string;
   invited_by_username?: string;
   workspace_name?: string;
+  invite_code?: string;
 }
+
+export type InvitationPreview =
+  | {
+      valid: true;
+      workspace_name: string;
+      workspace_id: string;
+      role_name: string;
+      email: string;
+      invited_by_username: string;
+      expires_at: string;
+      invite_code: string;
+    }
+  | {
+      valid: false;
+      reason: string;
+    };
 
 export interface Notification {
   id: string;
@@ -143,6 +160,15 @@ export interface ActivityLog {
   created_at: string;
 }
 
+export interface WorkspaceMembershipSummary {
+  role_name: string;
+  role_slug: string;
+  permissions: string[];
+  permission_count: number;
+  is_owner: boolean;
+  is_creator: boolean;
+}
+
 export interface Workspace {
   id: string;
   user_id: string;
@@ -151,6 +177,12 @@ export interface Workspace {
   is_active: number;
   created_at: string;
   updated_at: string;
+  approval_flows_enabled?: number;
+  owner_username?: string;
+  member_count?: number;
+  is_active_for_user?: boolean;
+  /** Current user's membership in this workspace — not global. */
+  my_membership?: WorkspaceMembershipSummary;
 }
 
 export type FileCategory = "task" | "subtask" | "issue" | "comment" | "general";
@@ -254,6 +286,8 @@ export interface WorkspaceRole {
   created_at: string;
   updated_at: string;
   permissions?: string[];
+  permission_effects?: RolePermissionEffect[];
+  permissions_hidden?: boolean;
 }
 
 export interface WorkspaceMember {
@@ -270,6 +304,7 @@ export interface WorkspaceMember {
   role_permissions?: string[];
   permission_overrides?: { grants: string[]; denies: string[] };
   effective_permissions?: string[];
+  permissions_hidden?: boolean;
 }
 
 export interface PermissionMatrix {
@@ -278,9 +313,217 @@ export interface PermissionMatrix {
 }
 
 export interface MyPermissions {
+  workspace_id: string;
+  workspace_name: string;
   permissions: string[];
   is_owner: boolean;
   is_creator: boolean;
   role_slug: string | null;
   role_name: string | null;
+  approval_flows_enabled?: boolean;
+  approval_decide_permissions?: string[];
+  can_decide_any_approval?: boolean;
+  security_version?: number;
+}
+
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired" | "executed" | "failed";
+
+export type PermissionEffect = "allow" | "approval_required" | "deny";
+
+export interface RolePermissionEffect {
+  permission_code: string;
+  effect: PermissionEffect;
+}
+
+export interface ApprovalRequest {
+  id: string;
+  workspace_id: string;
+  requester_id: string;
+  approver_id: string;
+  permission_code: string;
+  permission_name: string;
+  title: string;
+  description: string;
+  status: ApprovalStatus;
+  resolution_note: string;
+  created_at: string;
+  updated_at: string;
+  resolved_at: string | null;
+  attempt_number?: number;
+  requester_username: string;
+  requester_email: string;
+}
+
+export interface TeamMember {
+  team_id: string;
+  member_id: string;
+  joined_at: string;
+  username: string;
+  email: string;
+  role_name: string;
+  role_slug: string;
+}
+
+export interface WorkspaceTeam {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description: string;
+  lead_member_id: string | null;
+  created_at: string;
+  updated_at: string;
+  members: TeamMember[];
+  lead_username: string | null;
+  member_count: number;
+}
+
+export type TeamJoinStatus = "pending" | "approved" | "rejected" | "cancelled";
+
+export interface TeamJoinRequest {
+  id: string;
+  workspace_id: string;
+  team_id: string;
+  requester_member_id: string;
+  reason: string;
+  status: TeamJoinStatus;
+  decided_by: string | null;
+  rejection_reason: string;
+  attempt_number: number;
+  previous_request_id: string | null;
+  created_at: string;
+  updated_at: string;
+  decided_at: string | null;
+  requester_username: string;
+  requester_email: string;
+  team_name: string;
+}
+
+export interface TeamJoinStatusInfo {
+  is_member: boolean;
+  pending: boolean;
+  last_rejected: boolean;
+}
+
+export interface TeamAssignment {
+  id: string;
+  workspace_id: string;
+  team_id: string;
+  entity_type: "task" | "issue" | "subtask";
+  entity_id: string;
+  assigned_by: string | null;
+  created_at: string;
+  team_name?: string;
+}
+
+export type ProjectStatus = "active" | "archived";
+export type ProjectRoleInProject = "lead" | "member" | "reviewer";
+
+export interface WorkspaceProject {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description: string;
+  status: ProjectStatus;
+  lead_member_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectMember {
+  project_id: string;
+  member_id: string;
+  role_in_project: ProjectRoleInProject;
+  status: string;
+  joined_at: string;
+  username: string;
+  email: string;
+  role_name: string;
+  role_slug: string;
+}
+
+export interface ProjectTeamLink {
+  project_id: string;
+  team_id: string;
+  team_name: string;
+  member_count: number;
+  assigned_at: string;
+}
+
+export interface ProjectSummary extends WorkspaceProject {
+  lead_username: string | null;
+  team_count: number;
+  member_count: number;
+  open_task_count: number;
+  open_issue_count: number;
+}
+
+export interface ProjectWithDetails extends ProjectSummary {
+  members: ProjectMember[];
+  teams: ProjectTeamLink[];
+}
+
+export interface MemberManagementSummary {
+  member_id: string;
+  user_id: string;
+  username: string;
+  email: string;
+  workspace_role_name: string;
+  workspace_role_slug: string;
+  is_owner: boolean;
+  teams: { id: string; name: string; role_in_team: string | null; is_lead: boolean }[];
+  projects: {
+    id: string;
+    name: string;
+    role_in_project: ProjectRoleInProject | null;
+    access_type: "direct" | "team";
+  }[];
+}
+
+export interface WorkspaceOverviewStats {
+  project_count: number;
+  active_project_count: number;
+  team_count: number;
+  member_count: number;
+  pending_approval_count: number;
+  pending_team_request_count: number;
+  security_alert_count: number;
+}
+
+export interface AppVersion {
+  name: string;
+  version: string;
+}
+
+export interface UserSession {
+  id: string;
+  user_agent: string | null;
+  created_at: string;
+  last_seen_at: string;
+  expires_at: string;
+  is_current: boolean;
+}
+
+export type SecurityRiskLevel = "INFO" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export interface SecurityEvent {
+  id: string;
+  timestamp: string;
+  request_id: string | null;
+  session_id: string | null;
+  actor_user_id: string | null;
+  workspace_id: string | null;
+  team_id: string | null;
+  source_ip: string | null;
+  user_agent: string | null;
+  http_method: string | null;
+  route: string | null;
+  action: string;
+  resource_type: string | null;
+  resource_id: string | null;
+  result: string;
+  reason: string | null;
+  status_code: number | null;
+  risk_level: SecurityRiskLevel;
+  metadata: string;
 }

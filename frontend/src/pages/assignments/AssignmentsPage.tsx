@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useMembers } from "../../context/MembersContext";
+import { usePermissions } from "../../context/PermissionsContext";
 import { useWorkspace } from "../../context/WorkspaceContext";
 import { api } from "../../services/api";
 import type { Issue, Subtask, Task } from "../../models/types";
@@ -9,92 +11,172 @@ import { TablePageSkeleton } from "../../shared/Skeleton";
 import { ErrorState, EmptyState } from "../../shared/StateBox";
 import { SeverityBadge } from "../../shared/SeverityBadge";
 import { StatusBadge } from "../../shared/StatusBadge";
-import { UserAssignee } from "../../shared/UserAssignee";
+import { AssignUsers, assigneeIdsFrom, assignPermissionFor } from "../../shared/userAssignment";
+import type { AssignableEntityType } from "../../shared/userAssignment";
+import { EntityTypeBadge } from "../../shared/entityType";
 import { formatDate } from "../../utils/severity";
 
 interface AssignmentRow {
   id: string;
-  entityType: "task" | "issue" | "subtask";
+  entityType: AssignableEntityType;
   title: string;
-  assigneeId: string;
+  assigneeIds: string[];
   severity: Task["severity"];
   status: string;
   updatedAt: string;
   link: string;
 }
 
+function flattenAssignments(tasks: Task[], issues: Issue[], subtasks: Subtask[]): AssignmentRow[] {
+  const list: AssignmentRow[] = [];
+
+  for (const task of tasks) {
+    const assigneeIds = assigneeIdsFrom(task);
+    if (assigneeIds.length === 0) continue;
+    list.push({
+      id: task.id,
+      entityType: "task",
+      title: task.title,
+      assigneeIds,
+      severity: task.severity,
+      status: task.status,
+      updatedAt: task.updated_at,
+      link: `/tasks/${task.id}`,
+    });
+  }
+
+  for (const issue of issues) {
+    const assigneeIds = assigneeIdsFrom(issue);
+    if (assigneeIds.length === 0) continue;
+    list.push({
+      id: issue.id,
+      entityType: "issue",
+      title: issue.title,
+      assigneeIds,
+      severity: issue.severity,
+      status: issue.status,
+      updatedAt: issue.updated_at,
+      link: `/issues/${issue.id}`,
+    });
+  }
+
+  for (const sub of subtasks) {
+    const assigneeIds = assigneeIdsFrom(sub);
+    if (assigneeIds.length === 0) continue;
+    list.push({
+      id: sub.id,
+      entityType: "subtask",
+      title: sub.title,
+      assigneeIds,
+      severity: sub.severity,
+      status: sub.status,
+      updatedAt: sub.updated_at,
+      link: sub.task_id ? `/tasks/${sub.task_id}` : sub.issue_id ? `/issues/${sub.issue_id}` : "/subtasks",
+    });
+  }
+
+  return list.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
 export function AssignmentsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { activeWorkspace, loading: workspaceLoading } = useWorkspace();
+  const { members } = useMembers();
+  const { hasPermission } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [rows, setRows] = useState<AssignmentRow[]>([]);
   const [typeFilter, setTypeFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
 
-  useEffect(() => {
+  const loadRows = useCallback(async () => {
     if (!token || !activeWorkspace?.id) return;
     setLoading(true);
     setError("");
-    Promise.all([
-      api.getTasks(token, activeWorkspace.id),
-      api.getIssues(token, activeWorkspace.id),
-      api.getSubtasks(token, { workspace_id: activeWorkspace.id }),
-    ])
-      .then(([t, i, s]) => {
-        const list: AssignmentRow[] = [];
-        t.tasks.filter((x) => x.assignee_id).forEach((task: Task) => {
-          list.push({
-            id: task.id,
-            entityType: "task",
-            title: task.title,
-            assigneeId: task.assignee_id!,
-            severity: task.severity,
-            status: task.status,
-            updatedAt: task.updated_at,
-            link: `/tasks/${task.id}`,
-          });
-        });
-        i.issues.filter((x) => x.assignee_id).forEach((issue: Issue) => {
-          list.push({
-            id: issue.id,
-            entityType: "issue",
-            title: issue.title,
-            assigneeId: issue.assignee_id!,
-            severity: issue.severity,
-            status: issue.status,
-            updatedAt: issue.updated_at,
-            link: `/issues/${issue.id}`,
-          });
-        });
-        s.subtasks.filter((x) => x.assignee_id).forEach((sub: Subtask) => {
-          list.push({
-            id: sub.id,
-            entityType: "subtask",
-            title: sub.title,
-            assigneeId: sub.assignee_id!,
-            severity: sub.severity,
-            status: sub.status,
-            updatedAt: sub.updated_at,
-            link: sub.task_id ? `/tasks/${sub.task_id}` : sub.issue_id ? `/issues/${sub.issue_id}` : "/subtasks",
-          });
-        });
-        setRows(list);
-      })
-      .catch((e) => setError((e as Error).message))
-      .finally(() => setLoading(false));
+    try {
+      const [t, i, s] = await Promise.all([
+        api.getTasks(token, activeWorkspace.id),
+        api.getIssues(token, activeWorkspace.id),
+        api.getSubtasks(token, { workspace_id: activeWorkspace.id }),
+      ]);
+      setRows(flattenAssignments(t.tasks, i.issues, s.subtasks));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, [token, activeWorkspace?.id]);
 
-  const filtered = useMemo(() => {
-    if (typeFilter === "all") return rows;
-    return rows.filter((r) => r.entityType === typeFilter);
-  }, [rows, typeFilter]);
+  useEffect(() => {
+    loadRows();
+  }, [loadRows]);
 
-  if (workspaceLoading || (loading && !error)) return <TablePageSkeleton cols={6} filters={1} />;
+  const filtered = useMemo(() => {
+    let list = rows;
+    if (typeFilter !== "all") list = list.filter((r) => r.entityType === typeFilter);
+    if (assigneeFilter === "unassigned") list = list.filter((r) => r.assigneeIds.length === 0);
+    else if (assigneeFilter === "me" && user?.id) list = list.filter((r) => r.assigneeIds.includes(user.id));
+    else if (assigneeFilter !== "all") list = list.filter((r) => r.assigneeIds.includes(assigneeFilter));
+    return list;
+  }, [rows, typeFilter, assigneeFilter, user?.id]);
+
+  const workload = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      for (const id of row.assigneeIds) {
+        counts.set(id, (counts.get(id) ?? 0) + 1);
+      }
+    }
+    return members
+      .map((m) => ({ member: m, count: counts.get(m.user_id) ?? 0 }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }, [rows, members]);
+
+  const saveAssignees = async (row: AssignmentRow, assignee_ids: string[]) => {
+    if (!token) return;
+    if (row.entityType === "task") {
+      await api.updateTask(token, row.id, { assignee_ids });
+    } else if (row.entityType === "issue") {
+      await api.updateIssue(token, row.id, { assignee_ids });
+    } else {
+      await api.updateSubtask(token, row.id, { assignee_ids });
+    }
+    await loadRows();
+  };
+
+  const canAssign = (entityType: AssignableEntityType) => hasPermission(assignPermissionFor(entityType));
+
+  if (workspaceLoading || (loading && !error)) return <TablePageSkeleton cols={6} filters={2} />;
   if (error) return <ErrorState message={error} />;
 
   return (
     <div>
-      <PageHeader title="Assignments" subtitle="All tasks, issues, and subtasks with assignees." />
+      <PageHeader
+        title="Assignments"
+        subtitle="Central hub for assigning workspace members to tasks, issues, and subtasks."
+      />
+
+      {workload.length > 0 && (
+        <section className="card assignment-workload">
+          <h3 className="card-title">Workload by member</h3>
+          <ul className="assignment-workload-list">
+            {workload.map(({ member, count }) => (
+              <li key={member.id}>
+                <button
+                  type="button"
+                  className={`assignment-workload-item${assigneeFilter === member.user_id ? " active" : ""}`}
+                  onClick={() => setAssigneeFilter((current) => (current === member.user_id ? "all" : member.user_id))}
+                >
+                  <AssignUsers variant="display" userIds={[member.user_id]} size="sm" />
+                  <span className="muted">{member.role_name}</span>
+                  <strong>{count}</strong>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="filters-bar card">
         <select className="select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
@@ -103,10 +185,11 @@ export function AssignmentsPage() {
           <option value="issue">Issues</option>
           <option value="subtask">Subtasks</option>
         </select>
+        <AssignUsers variant="filter" value={assigneeFilter} onChange={setAssigneeFilter} currentUserId={user?.id} />
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState message="No assignments found in this workspace." />
+        <EmptyState message="No assignments match your filters in this workspace." />
       ) : (
         <div className="card-table-wrap">
           <table className="data-table">
@@ -114,7 +197,7 @@ export function AssignmentsPage() {
               <tr>
                 <th>Type</th>
                 <th>Title</th>
-                <th>Assignee</th>
+                <th>Assignees</th>
                 <th>Status</th>
                 <th>Severity</th>
                 <th>Updated</th>
@@ -123,9 +206,20 @@ export function AssignmentsPage() {
             <tbody>
               {filtered.map((r) => (
                 <tr key={`${r.entityType}-${r.id}`}>
-                  <td><span className="badge">{r.entityType}</span></td>
+                  <td><EntityTypeBadge type={r.entityType} compact /></td>
                   <td><Link to={r.link} className="link-primary">{r.title}</Link></td>
-                  <td><UserAssignee userId={r.assigneeId} size="sm" /></td>
+                  <td>
+                    {canAssign(r.entityType) ? (
+                      <AssignUsers
+                        variant="inline"
+                        entityType={r.entityType}
+                        value={r.assigneeIds}
+                        onSave={(ids) => saveAssignees(r, ids)}
+                      />
+                    ) : (
+                      <AssignUsers variant="display" userIds={r.assigneeIds} size="sm" />
+                    )}
+                  </td>
                   <td><StatusBadge entityType={r.entityType} slug={r.status} compact /></td>
                   <td><SeverityBadge severity={r.severity} compact /></td>
                   <td>{formatDate(r.updatedAt)}</td>

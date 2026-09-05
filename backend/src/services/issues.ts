@@ -3,7 +3,7 @@ import { ActivityLogger } from "./activityLogger.js";
 import { notify } from "./notifications.js";
 import { recordSeverityChange } from "./severityEvents.js";
 import { parseSeverity, SEVERITY_RANK } from "../validation/severity.js";
-import { requirePermission, ForbiddenError, listAccessibleWorkspaceIds } from "./authorization.js";
+import { requirePermission, ForbiddenError, listWorkspaceIdsWithPermission } from "./authorization.js";
 import { validateStatus, getDefaultStatusSlug } from "./workspaceStatuses.js";
 import { enrichListWithAssignees, enrichWithAssignees, setAssigneeIds } from "./entityAssignments.js";
 import { notifyEntityWatchers } from "./entityEvents.js";
@@ -16,7 +16,7 @@ function sortBySeverity(issues: Issue[]): Issue[] {
 
 export function listIssues(userId: string, workspaceId?: string, severity?: Severity): Issue[] {
   if (workspaceId) return listIssuesInWorkspace(userId, workspaceId, severity);
-  const ids = listAccessibleWorkspaceIds(userId);
+  const ids = listWorkspaceIdsWithPermission(userId, "issue.view");
   if (ids.length === 0) return [];
   const placeholders = ids.map(() => "?").join(",");
   const params: unknown[] = [...ids];

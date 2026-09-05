@@ -1,5 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useAuth } from "./AuthContext";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";import { useAuth } from "./AuthContext";
 import { useWorkspace } from "./WorkspaceContext";
 import { api } from "../services/api";
 import type { StatusEntityType, WorkspaceStatus } from "../models/types";
@@ -20,25 +19,43 @@ export function StatusProvider({ children }: { children: ReactNode }) {
   const { activeWorkspace } = useWorkspace();
   const [statuses, setStatuses] = useState<WorkspaceStatus[]>([]);
   const [loading, setLoading] = useState(false);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
+  const activeWorkspaceIdRef = useRef<string | undefined>(activeWorkspace?.id);
+
+  useEffect(() => {
+    activeWorkspaceIdRef.current = activeWorkspace?.id;
+  }, [activeWorkspace?.id]);
 
   const refresh = useCallback(async () => {
     if (!token || !activeWorkspace?.id) {
       setStatuses([]);
       return;
     }
-    setLoading(true);
-    try {
-      const { statuses: list } = await api.getWorkspaceStatuses(token, activeWorkspace.id);
-      setStatuses(list);
-    } finally {
-      setLoading(false);
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
+
+    const wsId = activeWorkspace.id;
+    const promise = (async () => {
+      setLoading(true);
+      try {
+        const { statuses: list } = await api.getWorkspaceStatuses(token, wsId);
+        if (activeWorkspaceIdRef.current === wsId) {
+          setStatuses(list);
+        }
+      } finally {
+        setLoading(false);
+        refreshInFlightRef.current = null;
+      }
+    })();
+
+    refreshInFlightRef.current = promise;
+    return promise;
   }, [token, activeWorkspace?.id]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
-
   const forEntity = useCallback(
     (entityType: StatusEntityType) =>
       statuses

@@ -22,6 +22,26 @@ export const PERMISSION_CATALOG: PermissionDefinition[] = [
   { code: "team.delete", name: "Delete Teams", description: "Delete teams", group: "Teams" },
   { code: "team.manage_members", name: "Manage Team Members", description: "Add or remove members from teams", group: "Teams" },
   { code: "team.assign_lead", name: "Assign Team Lead", description: "Set or change team lead", group: "Teams" },
+  { code: "team.request_join", name: "Request Team Join", description: "Request to join a team", group: "Teams" },
+  { code: "team.review_join_request", name: "Review Join Requests", description: "Approve or reject team join requests", group: "Teams" },
+
+  // Projects
+  { code: "project.view", name: "View Projects", description: "View projects you belong to", group: "Projects" },
+  { code: "project.view_all", name: "View All Projects", description: "View all workspace projects", group: "Projects" },
+  { code: "project.create", name: "Create Projects", description: "Create new projects", group: "Projects" },
+  { code: "project.update", name: "Edit Projects", description: "Edit project details and status", group: "Projects" },
+  { code: "project.delete", name: "Delete Projects", description: "Delete projects", group: "Projects" },
+  { code: "project.manage_members", name: "Manage Project Members", description: "Add or remove direct project members", group: "Projects" },
+  { code: "project.assign_teams", name: "Assign Project Teams", description: "Assign teams to projects", group: "Projects" },
+  { code: "project.change_lead", name: "Change Project Lead", description: "Set or change project lead", group: "Projects" },
+
+  // Approvals
+  { code: "approval.decide", name: "Decide All Approvals", description: "Approve or reject any permission request", group: "Approvals" },
+  { code: "approval.decide.workspace", name: "Decide Workspace Approvals", description: "Approve workspace-level permission requests", group: "Approvals" },
+  { code: "approval.decide.tasks", name: "Decide Task Approvals", description: "Approve task-related permission requests", group: "Approvals" },
+  { code: "approval.decide.issues", name: "Decide Issue Approvals", description: "Approve issue-related permission requests", group: "Approvals" },
+  { code: "approval.decide.members", name: "Decide Member Approvals", description: "Approve member-related permission requests", group: "Approvals" },
+  { code: "approval.decide.teams", name: "Decide Team Approvals", description: "Approve team-related permission requests", group: "Approvals" },
 
   // Tasks
   { code: "task.view", name: "View Tasks", description: "View tasks in the workspace", group: "Tasks" },
@@ -91,6 +111,7 @@ const omit = (...codes: string[]) => V.filter((p) => !codes.includes(p));
 const BASE = [
   "workspace.view", "task.view", "issue.view", "subtask.view", "file.view", "file.download",
   "comment.view", "activity.view", "notification.view", "notification.manage", "member.view", "team.view",
+  "project.view",
   "timesheet.view", "timesheet.create", "timesheet.edit",
 ];
 
@@ -105,20 +126,31 @@ const ENGINEER = [
 const TEAM_LEAD = [
   ...ENGINEER,
   "task.assign", "issue.assign", "subtask.assign", "team.manage_members",
+  "team.create", "team.request_join", "team.review_join_request",
 ];
 
 const MANAGER = [
   ...TEAM_LEAD,
   "workspace.edit", "workspace.manage_members", "member.invite", "member.change_role",
   "team.create", "team.edit", "team.assign_lead",
+  "project.view_all", "project.create", "project.update", "project.manage_members", "project.assign_teams", "project.change_lead",
   "task.delete", "issue.delete", "subtask.delete",
   "workspace.settings",
   "timesheet.view_all", "timesheet.delete",
 ];
 
+const ADMIN_APPROVAL_DECIDE = [
+  "approval.decide",
+  "approval.decide.workspace",
+  "approval.decide.tasks",
+  "approval.decide.issues",
+  "approval.decide.members",
+  "approval.decide.teams",
+];
+
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
   owner: ALL_PERMISSION_CODES,
-  admin: omit("workspace.delete", "workspace.manage_permissions"),
+  admin: [...omit("workspace.delete", "workspace.manage_permissions"), ...ADMIN_APPROVAL_DECIDE],
   cto: omit("workspace.delete", "workspace.manage_permissions", "workspace.manage_roles"),
   "engineering-manager": MANAGER,
   "tech-lead": TEAM_LEAD,
@@ -143,6 +175,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "issue.create", "issue.edit", "issue.change_status", "issue.change_severity", "issue.assign", "issue.add_comment",
     "subtask.view", "subtask.create", "comment.create",
     "team.view",
+    "project.view_all", "project.create", "project.update", "project.manage_members", "project.assign_teams", "project.change_lead",
   ],
   designer: [
     ...BASE,
@@ -160,8 +193,21 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "issue.create", "issue.edit", "issue.change_status", "issue.add_comment",
     "task.add_comment", "comment.create",
   ],
-  viewer: BASE.filter((p) => !p.startsWith("team.") || p === "team.view"),
+  viewer: [...BASE.filter((p) => !p.startsWith("team.") || p === "team.view"), "team.request_join"],
 };
+
+/** Permissions that default to requiring approval when assigned via role effect. */
+export const DEFAULT_APPROVAL_REQUIRED: string[] = [
+  "workspace.delete",
+  "task.delete",
+  "issue.delete",
+  "subtask.delete",
+  "member.remove",
+  "member.change_role",
+  "team.delete",
+  "project.delete",
+  "project.change_lead",
+];
 
 export const SYSTEM_ROLE_SLUGS = [
   "owner",

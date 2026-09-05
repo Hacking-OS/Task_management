@@ -1,0 +1,173 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm 
+help npmrc` for supported config options.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Users\mufad\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...config options.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> jellyfish-backend@2.1.0 test:coverage
+> node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage
+
+(node:7720) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+PASS tests/unit/routes/routeErrors.test.ts (16.712 s)
+PASS tests/integration/servicesCoverage.test.ts (8.925 s)
+  ΓùÅ Console
+
+    console.log
+      
+      Demo data seeded (password for all users: demo1234)
+      
+      Acme Software (b8492b93-0939-4b38-b4c8-70b636f2990b)
+        Owner login: demo / demo1234
+      
+      Onboarding / invite test accounts:
+        newuser / demo1234  ΓÇö no workspace, pending Acme invite (code: ACMEJOIN)
+        orphan  / demo1234  ΓÇö no workspace, no invites (create workspace flow)
+        freelancer / demo1234 ΓÇö Acme member + pending Startup Labs owner invite (code: FREELN01)
+      
+      Second workspace:
+        startup / demo1234 ΓÇö Startup Labs owner (c1a2b3c4-d5e6-7890-abcd-ef1234567890)
+
+      at log (src/services/D:/Projects/PY-BOT/PY-BOT/backend/src/services/demoSeed.ts:623:11)
+
+PASS tests/api/workspaceCollaboration.test.ts
+PASS tests/unit/services/socketSecurity.test.ts
+PASS tests/unit/middleware/workspaceAuth.test.ts
+PASS tests/integration/services.test.ts
+PASS tests/integration/tasks-issues.test.ts
+PASS tests/unit/services/authorizationService.test.ts
+PASS tests/api/tasks.test.ts
+PASS tests/integration/demoSeed.test.ts
+  ΓùÅ Console
+
+    console.log
+      
+      Demo data seeded (password for all users: demo1234)
+      
+      Acme Software (b8492b93-0939-4b38-b4c8-70b636f2990b)
+        Owner login: demo / demo1234
+      
+      Onboarding / invite test accounts:
+        newuser / demo1234  ΓÇö no workspace, pending Acme invite (code: ACMEJOIN)
+        orphan  / demo1234  ΓÇö no workspace, no invites (create workspace flow)
+        freelancer / demo1234 ΓÇö Acme member + pending Startup Labs owner invite (code: FREELN01)
+      
+      Second workspace:
+        startup / demo1234 ΓÇö Startup Labs owner (c1a2b3c4-d5e6-7890-abcd-ef1234567890)
+
+      at log (src/services/D:/Projects/PY-BOT/PY-BOT/backend/src/services/demoSeed.ts:623:11)
+
+PASS tests/api/subtasks.test.ts
+PASS tests/api/issues.test.ts
+PASS tests/permissions/resolver.test.ts
+PASS tests/integration/invitations.test.ts
+PASS tests/api/comments.test.ts
+PASS tests/api/workspaces-extended.test.ts
+PASS tests/api/notifications.test.ts
+PASS tests/integration/comments.test.ts
+PASS tests/api/auth-extended.test.ts
+PASS tests/unit/middleware/requestContext.test.ts
+PASS tests/api/auth.test.ts
+PASS tests/integration/approvals.test.ts
+PASS tests/api/workspaces.test.ts
+PASS tests/unit/middleware/auth.test.ts
+PASS tests/integration/workspaceIsolation.test.ts
+PASS tests/api/files.test.ts
+PASS tests/integration/notifications.test.ts
+PASS tests/api/users.test.ts
+PASS tests/api/timeEntries.test.ts
+PASS tests/api/security.test.ts
+PASS tests/api/stats.test.ts
+PASS tests/api/activityLogs.test.ts
+PASS tests/security/securityEvents.test.ts
+PASS tests/unit/validation/severity.test.ts
+PASS tests/unit/validation/common.test.ts
+PASS tests/security/rateLimit.test.ts
+PASS tests/unit/validation/securityFields.test.ts
+PASS tests/unit/validation/priority.test.ts
+----------------------------|---------|----------|---------|---------|---------------------------------------------------------------
+File                        | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s                                             
+----------------------------|---------|----------|---------|---------|---------------------------------------------------------------
+All files                   |   92.06 |    75.83 |   95.53 |    96.2 |                                                               
+ middleware                 |     100 |      100 |     100 |     100 |                                                               
+  auth.ts                   |     100 |      100 |     100 |     100 |                                                               
+  rateLimit.ts              |     100 |      100 |     100 |     100 |                                                               
+  requestContext.ts         |     100 |      100 |     100 |     100 |                                                               
+  workspaceAuth.ts          |     100 |      100 |     100 |     100 |                                                               
+ permissions                |     100 |      100 |     100 |     100 |                                                               
+  catalog.ts                |     100 |      100 |     100 |     100 |                                                               
+ routes                     |   99.21 |    81.28 |     100 |   99.31 |                                                               
+  activityLogs.ts           |     100 |      100 |     100 |     100 |                                                               
+  auth.ts                   |   98.76 |    84.21 |     100 |     100 | 26,69-84,148-163                                              
+  comments.ts               |     100 |      100 |     100 |     100 |                                                               
+  files.ts                  |     100 |    85.71 |     100 |     100 | 35,64                                                         
+  issues.ts                 |     100 |      100 |     100 |     100 |                                                               
+  notifications.ts          |     100 |      100 |     100 |     100 |                                                               
+  security.ts               |     100 |       75 |     100 |     100 | 17                                                            
+  stats.ts                  |     100 |      100 |     100 |     100 |                                                               
+  subtasks.ts               |     100 |      100 |     100 |     100 |                                                               
+  tasks.ts                  |     100 |      100 |     100 |     100 |                                                               
+  timeEntries.ts            |     100 |      100 |     100 |     100 |                                                               
+  users.ts                  |     100 |    58.33 |     100 |     100 | 53                                                            
+  workspaceCollaboration.ts |   99.36 |    79.27 |     100 |   99.36 | 1083,1108,1122                                                
+  workspaces.ts             |   94.73 |     87.5 |     100 |   94.73 | 75,85-86                                                      
+ services                   |   88.57 |    73.16 |    93.5 |   94.48 |                                                               
+  activityLogger.ts         |     100 |    95.83 |     100 |     100 | 18                                                            
+  approvalEvents.ts         |     100 |    66.66 |     100 |     100 | 37-50                                                         
+  approvalFlows.ts          |   85.82 |    72.05 |   81.81 |   92.85 | 71,226,282-287,300-305,311-312                                
+  auth.ts                   |   95.08 |       80 |     100 |   96.66 | 84,258                                                        
+  authorization.ts          |   81.73 |       60 |   90.32 |   88.63 | 78,88,154,157,200,253-255,266-267                             
+  authorizationService.ts   |      88 |    84.21 |    87.5 |   89.58 | 13-16,96                                                      
+  comments.ts               |   95.83 |    78.84 |     100 |     100 | 23-27,33,37-40,77-113,118-122,140,178                         
+  demoSeed.ts               |   97.03 |    83.33 |     100 |     100 | 65,207,573-575                                                
+  entityAssignments.ts      |    88.7 |    57.89 |   92.85 |   94.23 | 32-34                                                         
+  entityEvents.ts           |   95.23 |    87.87 |     100 |     100 | 21,29-48,79                                                   
+  entityStakeholders.ts     |     100 |      100 |     100 |     100 |                                                               
+  files.ts                  |   91.73 |    72.38 |   88.23 |   95.32 | 69,193,258,293-297                                            
+  issues.ts                 |   82.69 |    69.72 |      90 |   94.25 | 102-103,124,178-179                                           
+  memberPermissions.ts      |   91.89 |       75 |     100 |   96.55 | 58                                                            
+  notifications.ts          |   90.69 |    79.16 |      90 |   90.47 | 50,135-141                                                    
+  permissionEvents.ts       |     100 |    54.54 |     100 |     100 | 9-36,91-105                                                   
+  permissionResolver.ts     |   93.93 |    86.95 |     100 |   98.21 | 139                                                           
+  permissionVisibility.ts   |   92.85 |       90 |     100 |     100 | 24                                                            
+  permissions.ts            |     100 |      100 |     100 |     100 |                                                               
+  projectAccess.ts          |   97.05 |    86.36 |     100 |     100 | 51-52,101                                                     
+  projects.ts               |   79.02 |    59.15 |   78.12 |   86.71 | 64,87,166-167,171,188,256,289,325-326,379-380,387-391,476-482 
+  securityEvents.ts         |   82.92 |    90.32 |     100 |   86.48 | 43,123-124,127-128                                            
+  securityVersion.ts        |      90 |    57.14 |     100 |   94.73 | 63                                                            
+  sessions.ts               |   86.95 |    68.96 |   94.44 |   89.39 | 187,214,225-226,244,265-269                                   
+  severityEvents.ts         |     100 |      100 |     100 |     100 |                                                               
+  socketSecurity.ts         |     100 |    93.33 |     100 |     100 | 66-77,241-255                                                 
+  stats.ts                  |   96.66 |    86.11 |     100 |   98.27 | 68                                                            
+  subtasks.ts               |    78.9 |    69.53 |      90 |   91.26 | 57,97-98,101,126-127,148,198-199                              
+  tasks.ts                  |    86.6 |     78.7 |      90 |   91.26 | 28-29,41-42,175,180,214-215,252                               
+  teamAssignments.ts        |   86.66 |       35 |   77.77 |   92.85 | 23,112                                                        
+  teamMembershipRequests.ts |   79.34 |    55.73 |     100 |   91.25 | 136,194,207,260,267-272,280                                   
+  teams.ts                  |   84.12 |    69.44 |   86.66 |   94.44 | 197,205-214                                                   
+  timeEntries.ts            |   86.51 |    78.84 |     100 |   91.46 | 47-48,52-53,83,159-160                                        
+  workspaceMembers.ts       |      90 |    70.83 |     100 |   97.76 | 69,270,364                                                    
+  workspacePaths.ts         |     100 |       75 |     100 |     100 | 19                                                            
+  workspaceRoles.ts         |   82.35 |    54.76 |     100 |   98.55 | 50                                                            
+  workspaceStatuses.ts      |   80.95 |    65.62 |     100 |   97.05 | 83                                                            
+  workspaces.ts             |   90.56 |    41.17 |     100 |   92.15 | 92-104                                                        
+ validation                 |     100 |      100 |     100 |     100 |                                                               
+  common.ts                 |     100 |      100 |     100 |     100 |                                                               
+  errors.ts                 |     100 |      100 |     100 |     100 |                                                               
+  severity.ts               |     100 |      100 |     100 |     100 |                                                               
+----------------------------|---------|----------|---------|---------|---------------------------------------------------------------
+
+=============================== Coverage summary ===============================
+Statements   : 92.06% ( 3364/3654 )
+Branches     : 75.83% ( 1450/1912 )
+Functions    : 95.53% ( 578/605 )
+Lines        : 96.2% ( 3219/3346 )
+================================================================================
+
+Test Suites: 38 passed, 38 total
+Tests:       551 passed, 551 total
+Snapshots:   0 total
+Time:        73.852 s, estimated 77 s
+Ran all test suites.

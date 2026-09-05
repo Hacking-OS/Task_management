@@ -8,11 +8,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { io, type Socket } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 import { useWorkspace } from "./WorkspaceContext";
-import { api } from "../services/api";
-import { getBackendOrigin } from "../config/backend";
+import { useSocket } from "./SocketContext";
+import { useSocketEvent } from "../hooks/useSocketEvent";
+import { api, ApiError } from "../services/api";
 import type { Notification } from "../models/types";
 
 const FALLBACK_POLL_MS = 120000;
@@ -43,18 +43,22 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const { activeWorkspace, refresh: refreshWorkspaces } = useWorkspace();
+  const { connected } = useSocket();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [ringing, setRinging] = useState(false);
   const [toast, setToast] = useState<Notification | null>(null);
-  const [connected, setConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const toastTimerRef = useRef<number | null>(null);
   const ringTimerRef = useRef<number | null>(null);
-
   const workspaceId = activeWorkspace?.id;
+  const activeWorkspaceIdRef = useRef<string | undefined>(workspaceId);
+  const refreshInFlightRef = useRef<{ wsId: string; promise: Promise<void> } | null>(null);
+
+  useEffect(() => {
+    activeWorkspaceIdRef.current = workspaceId;
+  }, [workspaceId]);
 
   const triggerRing = useCallback(() => {
     setRinging(true);
@@ -90,11 +94,31 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     if (!token) return;
-    const { notifications: list, unreadCount: count } = await api.getNotifications(token, workspaceId);
-    setNotifications(list);
-    setUnreadCount(count);
-    for (const n of list) seenIdsRef.current.add(n.id);
-    setLoading(false);
+    const wsKey = workspaceId ?? "__all__";
+    if (refreshInFlightRef.current?.wsId === wsKey) {
+      return refreshInFlightRef.current.promise;
+    }
+
+    const promise = (async () => {
+      try {
+        const { notifications: list, unreadCount: count } = await api.getNotifications(token, workspaceId);
+        const currentKey = activeWorkspaceIdRef.current ?? "__all__";
+        if (currentKey !== wsKey) return;
+        setNotifications(list);
+        setUnreadCount(count);
+        for (const n of list) seenIdsRef.current.add(n.id);
+      } catch {
+        // Avoid unhandled rejection on refresh failure.
+      } finally {
+        setLoading(false);
+        if (refreshInFlightRef.current?.wsId === wsKey) {
+          refreshInFlightRef.current = null;
+        }
+      }
+    })();
+
+    refreshInFlightRef.current = { wsId: wsKey, promise };
+    return promise;
   }, [token, workspaceId]);
 
   useEffect(() => {
@@ -109,48 +133,23 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     void refresh();
   }, [token, workspaceId, refresh]);
 
-  useEffect(() => {
-    if (!token) return;
+  useSocketEvent<{ notification: Notification; unreadCount: number }>(
+    "notification:new",
+    (payload) => handleIncoming(payload.notification, payload.unreadCount),
+    !!token
+  );
 
-    const socket = io(getBackendOrigin(), {
-      path: "/socket.io",
-      auth: { token },
-      transports: ["polling", "websocket"],
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-    });
+  useSocketEvent<{ unreadCount: number }>("notification:sync", (payload) => {
+    setUnreadCount(payload.unreadCount);
+    if (payload.unreadCount === 0) {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+    }
+  }, !!token);
 
-    socketRef.current = socket;
-
-    socket.on("connect", () => {
-      setConnected(true);
-      void refresh();
-    });
-
-    socket.on("disconnect", () => setConnected(false));
-
-    socket.on("notification:new", (payload: { notification: Notification; unreadCount: number }) => {
-      handleIncoming(payload.notification, payload.unreadCount);
-    });
-
-    socket.on("notification:sync", (payload: { unreadCount: number }) => {
-      setUnreadCount(payload.unreadCount);
-      if (payload.unreadCount === 0) {
-        setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
-      }
-    });
-
-    socket.on("notification:removed", (payload: { id: string; unreadCount: number }) => {
-      setUnreadCount(payload.unreadCount);
-      setNotifications((prev) => prev.filter((n) => n.id !== payload.id));
-    });
-
-    return () => {
-      socket.disconnect();
-      socketRef.current = null;
-      setConnected(false);
-    };
-  }, [token, refresh, handleIncoming]);
+  useSocketEvent<{ id: string; unreadCount: number }>("notification:removed", (payload) => {
+    setUnreadCount(payload.unreadCount);
+    setNotifications((prev) => prev.filter((n) => n.id !== payload.id));
+  }, !!token);
 
   useEffect(() => {
     if (!token || connected) return;
@@ -160,30 +159,49 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
   const markRead = useCallback(
     async (id: string) => {
-      if (!token) return;
-      const { unreadCount: count } = await api.markNotificationRead(token, id);
-      setUnreadCount(count);
-      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n)));
+      if (!token || !id?.trim()) return;
+      try {
+        const { unreadCount: count } = await api.markNotificationRead(token, id);
+        setUnreadCount(count);
+        setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: 1 } : n)));
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          setNotifications((prev) => prev.filter((n) => n.id !== id));
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+      }
     },
     [token]
   );
 
   const markAllRead = useCallback(async () => {
     if (!token) return;
-    await api.markAllNotificationsRead(token);
-    setUnreadCount(0);
-    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+    try {
+      await api.markAllNotificationsRead(token);
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: 1 })));
+    } catch {
+      // Avoid unhandled rejection when mark-all fails.
+    }
   }, [token]);
 
   const dismiss = useCallback(
     async (id: string) => {
-      if (!token) return;
-      await api.deleteNotification(token, id);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      const { unreadCount: count } = await api.getNotifications(token, workspaceId);
-      setUnreadCount(count);
+      if (!token || !id?.trim()) return;
+      const removed = notifications.find((n) => n.id === id);
+      try {
+        await api.deleteNotification(token, id);
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
+        if (removed && !removed.is_read) {
+          setUnreadCount((count) => Math.max(0, count - 1));
+        }
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          setNotifications((prev) => prev.filter((n) => n.id !== id));
+        }
+      }
     },
-    [token, workspaceId]
+    [token, notifications]
   );
 
   const acceptInvite = useCallback(
@@ -191,8 +209,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       if (!token) return;
       const { workspaceId: joinedId } = await api.acceptInvitation(token, inviteToken);
       await api.markNotificationRead(token, notificationId);
-      await refreshWorkspaces();
-      if (joinedId) await api.activateWorkspace(token, joinedId);
+      if (joinedId) {
+        await api.activateWorkspace(token, joinedId);
+      }
       await refreshWorkspaces();
       await refresh();
     },

@@ -50,7 +50,10 @@ export function listComments(userId: string, entityType: string, entityId: strin
     UNION SELECT workspace_id FROM subtasks WHERE id = ? AND ? = 'subtask'
   `).get(validEntityId, validEntityType, validEntityId, validEntityType, validEntityId, validEntityType) as { workspace_id: string } | undefined;
 
-  if (entity?.workspace_id) requirePermission(userId, entity.workspace_id, "comment.view");
+  if (!entity?.workspace_id) {
+    throw new Error("Entity not found");
+  }
+  requirePermission(userId, entity.workspace_id, "comment.view");
 
   return db
     .prepare("SELECT * FROM comments WHERE entity_type = ? AND entity_id = ? ORDER BY created_at ASC")
@@ -113,6 +116,10 @@ export function createComment(
 
   for (const mentionId of data.mentions ?? []) {
     if (mentionId !== userId) {
+      const mentionMember = db.prepare(`
+        SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ?
+      `).get(data.workspace_id, mentionId);
+      if (!mentionMember) continue;
       notify({
         userId: mentionId,
         type: "mention",
@@ -130,7 +137,7 @@ export function createComment(
 export function deleteComment(userId: string, commentId: string): void {
   const existing = db.prepare("SELECT * FROM comments WHERE id = ?").get(commentId) as Comment | undefined;
   if (!existing) throw new Error("Comment not found");
-  if (existing.workspace_id) requirePermission(userId, existing.workspace_id, "comment.create");
+  if (existing.workspace_id) requirePermission(userId, existing.workspace_id, "comment.delete");
 
   const result = db.prepare("DELETE FROM comments WHERE id = ? AND user_id = ?").run(commentId, userId);
   if (result.changes === 0) throw new Error("Comment not found");
